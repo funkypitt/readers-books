@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shelf">книги</string>
+    <string name="action_ok">ок</string>
+    <string name="action_cancel">отмена</string>
+    <string name="open_book">+ открыть книгу</string>
+    <string name="empty_shelf">на полке пусто. Откройте файл epub, mobi, fb2 или текст: отсюда, из файлового менеджера или поделившись им с этим приложением.</string>
+    <string name="not_started">не начата</string>
+    <string name="read">читать</string>
+    <string name="chapters">главы</string>
+    <string name="remove">убрать с полки</string>
+    <string name="reader_unsupported">этот файл не удалось прочитать</string>
+    <string name="larger_text">крупнее текст</string>
+    <string name="smaller_text">мельче текст</string>
+    <string name="reading_size">размер чтения — нажмите, чтобы увеличить</string>
+    <string name="auto_size">автоматический размер</string>
+    <string name="auto_size_hint">по ширине экрана</string>
+    <string name="ui_size">размер полки и меню</string>
+    <string name="font">шрифт</string>
+    <string name="keep_screen_on">не гасить экран при чтении</string>
+    <string name="haptics">лёгкая вибрация</string>
+    <string name="on">вкл</string>
+    <string name="off">выкл</string>
+    <string name="settings">настройки</string>
+    <string name="theme_dark">белым по чёрному</string>
+    <string name="theme_light">чёрным по белому</string>
+    <string name="colours">цвета</string>
+    <string name="about">страницы текста, разрезанные по целым строкам; epub, mobi, fb2, txt</string>
+</resources>

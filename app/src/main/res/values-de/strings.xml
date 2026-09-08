@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shelf">Bücher</string>
+    <string name="action_ok">ok</string>
+    <string name="action_cancel">abbrechen</string>
+    <string name="open_book">+ ein Buch öffnen</string>
+    <string name="empty_shelf">nichts im Regal. Eine epub-, mobi-, fb2- oder Textdatei öffnen: von hier, aus einem Dateimanager oder per Teilen an diese App.</string>
+    <string name="not_started">nicht begonnen</string>
+    <string name="read">lesen</string>
+    <string name="chapters">Kapitel</string>
+    <string name="remove">aus dem Regal nehmen</string>
+    <string name="reader_unsupported">diese Datei konnte nicht gelesen werden</string>
+    <string name="larger_text">größerer Text</string>
+    <string name="smaller_text">kleinerer Text</string>
+    <string name="reading_size">Lesegröße — antippen für größer</string>
+    <string name="auto_size">automatische Größe</string>
+    <string name="auto_size_hint">aus der Bildschirmbreite</string>
+    <string name="ui_size">Größe von Regal und Menüs</string>
+    <string name="font">Schrift</string>
+    <string name="keep_screen_on">Bildschirm beim Lesen anlassen</string>
+    <string name="haptics">haptisches Feedback</string>
+    <string name="on">an</string>
+    <string name="off">aus</string>
+    <string name="settings">Einstellungen</string>
+    <string name="theme_dark">Weiß auf Schwarz</string>
+    <string name="theme_light">Schwarz auf Weiß</string>
+    <string name="colours">Farben</string>
+    <string name="about">Textseiten, an ganzen Zeilen geschnitten; epub, mobi, fb2, txt</string>
+</resources>
