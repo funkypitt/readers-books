@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reader\'s Books</string>
+    <string name="shelf">books</string>
+    <string name="action_ok">ok</string>
+    <string name="action_cancel">cancel</string>
+    <string name="open_book">+ open a book</string>
+    <string name="empty_shelf">nothing on the shelf. Open an epub, mobi, fb2 or plain-text file: from here, from a file manager, or by sharing it to this app.</string>
+    <string name="not_started">not started</string>
+    <string name="read">read</string>
+    <string name="chapters">chapters</string>
+    <string name="remove">remove from the shelf</string>
+    <string name="reader_loading">…</string>
+    <string name="reader_unsupported">this file could not be read</string>
+    <string name="larger_text">larger text</string>
+    <string name="smaller_text">smaller text</string>
+    <string name="reading_size">reading size — tap for larger</string>
+    <string name="auto_size">automatic size</string>
+    <string name="auto_size_hint">from the screen width</string>
+    <string name="ui_size">size of the shelf and menus</string>
+    <string name="font">font</string>
+    <string name="keep_screen_on">keep the screen on while reading</string>
+    <string name="haptics">haptic tick</string>
+    <string name="on">on</string>
+    <string name="off">off</string>
+    <string name="settings">settings</string>
+    <string name="theme_dark">white on black</string>
+    <string name="theme_light">black on white</string>
+    <string name="colours">colours</string>
+    <string name="about">plain-text pages cut at whole lines; epub, mobi, fb2, txt</string>
+</resources>
