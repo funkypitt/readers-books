@@ -53,6 +53,12 @@ class MainActivity : ComponentActivity() {
 
     /** A book opened with or shared to this app lands on the shelf and opens. */
     private fun handle(intent: Intent?) {
+        // our own provider URI (from the launcher's tile): straight to that book's page
+        val own = intent?.data
+        if (intent?.action == Intent.ACTION_VIEW && own?.authority == "com.freedomfighter.readersbooks") {
+            own.lastPathSegment?.let { id -> if ((application as App).library.get(id) != null) { nav.home(); nav.push(Screen.Book(id)) } }
+            intent.action = null; return
+        }
         val uri: Uri? = when (intent?.action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> @Suppress("DEPRECATION") (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)

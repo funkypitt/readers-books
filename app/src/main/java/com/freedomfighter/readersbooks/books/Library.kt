@@ -47,6 +47,7 @@ class Library(private val context: Context) {
     private fun update(transform: (List<Entry>) -> List<Entry>) {
         val next = transform(_books.value).sortedWith(compareByDescending<Entry> { maxOf(it.opened, it.added) })
         _books.value = next
+        context.contentResolver.notifyChange(android.net.Uri.parse("content://com.freedomfighter.readersbooks/books"), null)
         runCatching { file.writeText(json.encodeToString(LibraryState.serializer(), LibraryState(next))) }
     }
 

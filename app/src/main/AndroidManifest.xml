@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Only apps signed with the same key (Reader's Launcher) may read the shelf. -->
+    <permission
+        android:name="com.freedomfighter.readersbooks.permission.ACCESS"
+        android:protectionLevel="signature" />
     <application
         android:name=".App"
         android:allowBackup="true"
@@ -43,6 +47,12 @@
                 <data android:pathPattern=".*\\.azw3" />
                 <data android:pathPattern=".*\\.fb2" />
             </intent-filter>
+            <!-- The launcher's tile: content://com.freedomfighter.readersbooks/books/<id>. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:host="com.freedomfighter.readersbooks" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -53,5 +63,10 @@
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
+        <provider
+            android:name=".provider.BooksProvider"
+            android:authorities="com.freedomfighter.readersbooks"
+            android:exported="true"
+            android:permission="com.freedomfighter.readersbooks.permission.ACCESS" />
     </application>
 </manifest>
