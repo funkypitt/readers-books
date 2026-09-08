@@ -81,7 +81,7 @@ class Library(private val context: Context) {
         cache[fileName] = book
         // the same book again replaces the old copy but keeps its place
         val same = _books.value.firstOrNull { it.title == book.title && it.format == format }
-        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = System.currentTimeMillis(), chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0)
+        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0)
         update { l -> l.filter { it.id != same?.id }.also { same?.let { s -> File(dir, s.fileName).delete() } } + entry }
         entry
     }

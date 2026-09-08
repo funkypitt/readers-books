@@ -109,7 +109,7 @@ fun ShelfScreen(nav: Nav, app: App) {
                 items(books, key = { it.id }) { b ->
                     Column(Modifier.fillMaxWidth().pressable(onClick = { nav.push(Screen.Book(b.id)) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
                         T(b.title, size = typo.title, maxLines = 2)
-                        Small(listOf(if (b.progress > 0) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened), b.format.name.lowercase()).filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
+                        Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened), b.format.name.lowercase()).filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
                     }
                 }
             }
