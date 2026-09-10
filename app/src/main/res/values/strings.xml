@@ -28,4 +28,7 @@
     <string name="theme_light">black on white</string>
     <string name="colours">colours</string>
     <string name="about">plain-text pages cut at whole lines; epub, mobi, fb2, txt</string>
+    <string name="widget_line_name">Reader\'s Books · current book</string>
+    <string name="widget_line_desc">the book you were reading; tap to carry on</string>
+    <string name="widget_caption">book</string>
 </resources>

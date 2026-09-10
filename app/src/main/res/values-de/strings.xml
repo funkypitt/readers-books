@@ -26,4 +26,7 @@
     <string name="theme_light">Schwarz auf Weiß</string>
     <string name="colours">Farben</string>
     <string name="about">Textseiten, an ganzen Zeilen geschnitten; epub, mobi, fb2, txt</string>
+    <string name="widget_line_name">Reader\'s Books · aktuelles Buch</string>
+    <string name="widget_line_desc">das aktuelle Buch, antippen zum Weiterlesen</string>
+    <string name="widget_caption">Buch</string>
 </resources>

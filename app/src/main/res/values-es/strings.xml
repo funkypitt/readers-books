@@ -26,4 +26,7 @@
     <string name="theme_light">negro sobre blanco</string>
     <string name="colours">colores</string>
     <string name="about">páginas de texto cortadas en líneas enteras; epub, mobi, fb2, txt</string>
+    <string name="widget_line_name">Reader\'s Books · libro en curso</string>
+    <string name="widget_line_desc">el libro en curso, toca para seguir</string>
+    <string name="widget_caption">libro</string>
 </resources>

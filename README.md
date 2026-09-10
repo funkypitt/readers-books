@@ -16,6 +16,11 @@ dropped; only the text remains. Open a book from the shelf, from a file manager 
 with"), or by sharing the file to the app. Books are copied into the app, so the original
 can move.
 
+## Widget
+
+A standard home-screen widget for any launcher, black and white: the book being read, with
+"book" and the position under it; tap carries on at the current page.
+
 ## Install
 
 From the [F-Droid repo](https://funkypitt.github.io/fdroid-repo/) or the APK attached to a
