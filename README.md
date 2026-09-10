@@ -26,6 +26,10 @@ A standard home-screen widget for any launcher, black and white: the book being 
 From the [F-Droid repo](https://funkypitt.github.io/fdroid-repo/) or the APK attached to a
 release. Build with `./gradlew assembleDebug` (JDK 17+, Android SDK 35).
 
-## Licence
+## Crédits / Credits
 
-MIT.
+© 2026 Pierre Gallaz. Développé avec [Claude Code](https://claude.com/claude-code) (Anthropic).
+Licence MIT, voir `LICENSE`.
+
+© 2026 Pierre Gallaz. Developed with [Claude Code](https://claude.com/claude-code) (Anthropic).
+MIT licence, see `LICENSE`.

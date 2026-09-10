@@ -1,0 +1,11 @@
+A black-and-white e-book reader, text only, made for e-ink phones and for anyone who wants a page and nothing else. No icons, no colours, no wallpaper: white on black or black on white, serif, sans or mono, three text sizes. Part of the Reader's family of apps (Reader's Launcher, Notes, Tasks, Calendar…).
+
+The shelf is a list: title, how far you are, when you last opened it. Tap to read. The page is plain text, cut at whole lines, never through a line: the right half of the screen turns forward, the left half back, a long press opens the menu (chapters, larger or smaller text, back to the shelf, remove). The reading position is remembered per book and survives a change of text size or screen. The screen stays on while a page is open.
+
+Formats: EPUB, MOBI (PalmDoc), FB2 and plain text. Images, styles and footnote links are dropped; only the text remains. Open a book from the shelf, from a file manager ("open with"), or by sharing the file to the app. Books are copied into the app, so the original can move.
+
+A standard home-screen widget for any launcher shows the book being read; a tap carries on at the current page. Reader's Launcher shows the same on its book tile.
+
+No network, no account, no tracking. English, French, German, Spanish, Portuguese, Russian. Free software, MIT licence.
+
+Pierre Gallaz · developed with Claude Code

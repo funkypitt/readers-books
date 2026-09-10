@@ -26,6 +26,7 @@
     <string name="theme_light">preto sobre branco</string>
     <string name="colours">cores</string>
     <string name="about">páginas de texto cortadas em linhas inteiras; epub, mobi, fb2, txt</string>
+    <string name="credits">Pierre Gallaz · desenvolvido com Claude Code</string>
     <string name="widget_line_name">Reader\'s Books · livro em curso</string>
     <string name="widget_line_desc">o livro em curso, toque para continuar</string>
     <string name="widget_caption">livro</string>

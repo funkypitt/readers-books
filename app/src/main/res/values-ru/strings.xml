@@ -26,6 +26,7 @@
     <string name="theme_light">чёрным по белому</string>
     <string name="colours">цвета</string>
     <string name="about">страницы текста, разрезанные по целым строкам; epub, mobi, fb2, txt</string>
+    <string name="credits">Pierre Gallaz · разработано с Claude Code</string>
     <string name="widget_line_name">Reader\'s Books · текущая книга</string>
     <string name="widget_line_desc">текущая книга, нажмите, чтобы продолжить</string>
     <string name="widget_caption">книга</string>

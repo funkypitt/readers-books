@@ -1,0 +1,11 @@
+Une liseuse noir et blanc, texte seulement, pensée pour les téléphones e-ink et pour qui veut une page et rien d'autre. Pas d'icônes, pas de couleurs, pas de fond d'écran : blanc sur noir ou noir sur blanc, serif, sans ou mono, trois tailles de texte. Fait partie de la famille Reader's (Reader's Launcher, Notes, Tasks, Calendar…).
+
+L'étagère est une liste : le titre, où vous en êtes, la dernière ouverture. Un tap pour lire. La page est du texte brut, coupée à la ligne entière, jamais au milieu d'une ligne : la moitié droite de l'écran tourne la page, la moitié gauche revient, un appui long ouvre le menu (chapitres, texte plus grand ou plus petit, retour à l'étagère, retirer). La position de lecture est mémorisée par livre et survit à un changement de taille de texte ou d'écran. L'écran reste allumé tant qu'une page est ouverte.
+
+Formats : EPUB, MOBI (PalmDoc), FB2 et texte brut. Images, styles et liens de notes sont ignorés ; seul le texte reste. On ouvre un livre depuis l'étagère, depuis un gestionnaire de fichiers (« ouvrir avec ») ou en partageant le fichier vers l'application. Les livres sont copiés dans l'application, l'original peut donc bouger.
+
+Un widget standard pour n'importe quel lanceur montre le livre en cours ; un tap reprend à la page courante. Reader's Launcher montre la même chose sur sa tuile livre.
+
+Pas de réseau, pas de compte, pas de pistage. Anglais, français, allemand, espagnol, portugais, russe. Logiciel libre, licence MIT.
+
+Pierre Gallaz · développé avec Claude Code

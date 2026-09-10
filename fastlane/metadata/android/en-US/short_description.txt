@@ -1,0 +1,1 @@
+Black-and-white, text-only e-book reader for e-ink: EPUB, MOBI, FB2, TXT
