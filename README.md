@@ -1,3 +1,5 @@
+![Reader's Books](docs/banner.png)
+
 # Reader's Books
 
 A black-and-white e-book reader for Android, in the family of
@@ -33,3 +35,7 @@ Licence MIT, voir `LICENSE`.
 
 © 2026 Pierre Gallaz. Developed with [Claude Code](https://claude.com/claude-code) (Anthropic).
 MIT licence, see `LICENSE`.
+
+## Captures d'écran
+
+<img src="docs/screenshot-1.png" width="30%"> <img src="docs/screenshot-2.png" width="30%">
