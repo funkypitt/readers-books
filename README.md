@@ -2,31 +2,32 @@
 
 # Reader's Books
 
-A black-and-white e-book reader for Android, in the family of
-[Reader's Launcher](https://github.com/funkypitt/readers-launcher), whose built-in reader it
-extends into a shelf of books.
+A shelf as a plain list; books as pages of text cut at whole lines, turned by a tap — made
+for e-ink. EPUB, MOBI, FB2, TXT; the place in each book is kept. No store, no account, no
+network permission. It extends the built-in reader of
+[Reader's Launcher](https://github.com/funkypitt/readers-launcher) into a shelf.
 
-The shelf is a list: title, how far you are, when you last opened it. Tap to read. The page
-is plain text, cut at whole lines, never through a line: the right half of the screen turns
-forward, the left half back, a long press opens the menu (chapters, larger or smaller text,
-back to the shelf, remove). The reading position is remembered per book and survives a
-change of text size or screen. The screen stays on while a page is open (fifteen minutes
-after the last turn).
+## Key points
 
-Formats: EPUB, MOBI (PalmDoc), FB2 and plain text. Images, styles and footnote links are
-dropped; only the text remains. Open a book from the shelf, from a file manager ("open
-with"), or by sharing the file to the app. Books are copied into the app, so the original
-can move.
-
-## Widget
-
-A standard home-screen widget for any launcher, black and white: the book being read, with
-"book" and the position under it; tap carries on at the current page.
+* The shelf lists title, how far you are, when you last opened it. Tap to read.
+* The right half of the screen turns forward, the left half back. Long press opens the menu:
+  chapters, larger or smaller text, back to the shelf, remove.
+* Add a book from the shelf, from a file manager ("open with"), or by sharing the file to the
+  app. Books are copied into the app, so the original can move.
+* The position is kept per book and survives a change of text size or screen. The screen
+  stays on while a page is open, until fifteen minutes after the last turn.
+* Text only: images, styles and footnote links are dropped. MOBI means PalmDoc; no PDF.
+* One home-screen widget for any launcher: the book being read and the position; tap carries
+  on at the current page. The launcher's book tile shows the same.
 
 ## Install
 
 From the [F-Droid repo](https://funkypitt.github.io/fdroid-repo/) or the APK attached to a
-release. Build with `./gradlew assembleDebug` (JDK 17+, Android SDK 35).
+release.
+
+## Build
+
+`./gradlew assembleDebug` (JDK 17+, Android SDK 35).
 
 ## Crédits / Credits
 
