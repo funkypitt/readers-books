@@ -8,6 +8,7 @@
     <string name="not_started">не начата</string>
     <string name="read">читать</string>
     <string name="chapters">главы</string>
+    <string name="contents">содержание</string>
     <string name="remove">убрать с полки</string>
     <string name="reader_unsupported">этот файл не удалось прочитать</string>
     <string name="larger_text">крупнее текст</string>

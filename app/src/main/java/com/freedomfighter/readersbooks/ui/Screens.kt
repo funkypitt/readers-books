@@ -94,7 +94,7 @@ fun ShelfScreen(nav: Nav, app: App) {
             scope.launch {
                 val r = withContext(Dispatchers.IO) { app.library.import(uri) }
                 nav.importing = false; nav.importFailed = r.isFailure
-                r.getOrNull()?.let { nav.push(Screen.Book(it.id)) }
+                r.getOrNull()?.let { nav.push(if (it.magazine) Screen.Chapters(it.id) else Screen.Book(it.id)) }
             }
         }
     }
@@ -107,7 +107,7 @@ fun ShelfScreen(nav: Nav, app: App) {
                 else if (nav.importFailed) item { Small(stringResource(R.string.reader_unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 if (books.isEmpty() && !nav.importing) item { Small(stringResource(R.string.empty_shelf), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                 items(books, key = { it.id }) { b ->
-                    Column(Modifier.fillMaxWidth().pressable(onClick = { nav.push(Screen.Book(b.id)) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
+                    Column(Modifier.fillMaxWidth().pressable(onClick = { nav.push(if (b.magazine) Screen.Chapters(b.id) else Screen.Book(b.id)) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
                         T(b.title, size = typo.title, maxLines = 2)
                         Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened), b.format.name.lowercase()).filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
                     }
@@ -124,7 +124,7 @@ fun ShelfScreen(nav: Nav, app: App) {
         bookMenu?.let { b ->
             TextMenu(b.title, listOf(
                 MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) },
-                MenuItem(stringResource(R.string.chapters)) { nav.push(Screen.Chapters(b.id)) },
+                MenuItem(stringResource(if (b.magazine) R.string.contents else R.string.chapters)) { nav.push(Screen.Chapters(b.id)) },
                 MenuItem(stringResource(R.string.remove)) { app.library.remove(b.id) }
             ), onDismiss = { bookMenu = null })
         }

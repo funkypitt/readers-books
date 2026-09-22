@@ -9,6 +9,7 @@
     <string name="not_started">not started</string>
     <string name="read">read</string>
     <string name="chapters">chapters</string>
+    <string name="contents">contents</string>
     <string name="remove">remove from the shelf</string>
     <string name="reader_loading">…</string>
     <string name="reader_unsupported">this file could not be read</string>

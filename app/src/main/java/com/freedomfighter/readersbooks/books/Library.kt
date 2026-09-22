@@ -21,7 +21,9 @@ data class Entry(
     val chapter: Int = 0,
     val charOffset: Int = 0,
     /** Position as a share of the whole text, for the shelf line. */
-    val progress: Int = 0
+    val progress: Int = 0,
+    /** A magazine issue (articles with a contents page) rather than a book. */
+    val magazine: Boolean = false
 )
 
 @Serializable
@@ -40,6 +42,7 @@ class Library(private val context: Context) {
     /** Most recently opened first. */
     val books: StateFlow<List<Entry>> = _books
     private val cache = HashMap<String, Book>()
+    private val images = HashMap<String, ImageStore>()
 
     private fun load(): List<Entry> = runCatching { json.decodeFromString(LibraryState.serializer(), file.readText()).books }.getOrDefault(emptyList())
 
@@ -61,7 +64,7 @@ class Library(private val context: Context) {
     fun touch(id: String) = update { l -> l.map { if (it.id == id) it.copy(opened = System.currentTimeMillis()) else it } }
 
     fun remove(id: String) = update { l ->
-        l.firstOrNull { it.id == id }?.let { File(dir, it.fileName).delete(); cache.remove(it.fileName) }
+        l.firstOrNull { it.id == id }?.let { File(dir, it.fileName).delete(); cache.remove(it.fileName); images.remove(it.fileName) }
         l.filter { it.id != id }
     }
 
@@ -83,7 +86,7 @@ class Library(private val context: Context) {
         cache[fileName] = book
         // the same book again replaces the old copy but keeps its place
         val same = _books.value.firstOrNull { it.title == book.title && it.format == format }
-        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0)
+        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0, magazine = book.magazine != null)
         update { l -> l.filter { it.id != same?.id }.also { same?.let { s -> File(dir, s.fileName).delete() } } + entry }
         entry
     }
@@ -93,6 +96,13 @@ class Library(private val context: Context) {
         cache[e.fileName]?.let { return it }
         val book = BookParser.parse(File(dir, e.fileName), e.format, e.title)
         cache[e.fileName] = book
+        // entries from before magazines were told apart learn what they are on first open
+        if ((book.magazine != null) != e.magazine) update { l -> l.map { if (it.id == e.id) it.copy(magazine = book.magazine != null) else it } }
         return book
     }
+
+    fun file(e: Entry): File = File(dir, e.fileName)
+
+    @Synchronized
+    fun images(e: Entry): ImageStore = images.getOrPut(e.fileName) { ImageStore(file(e)) }
 }

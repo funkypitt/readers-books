@@ -8,6 +8,7 @@
     <string name="not_started">pas commencé</string>
     <string name="read">lire</string>
     <string name="chapters">chapitres</string>
+    <string name="contents">sommaire</string>
     <string name="remove">retirer de l\'étagère</string>
     <string name="reader_unsupported">ce fichier n\'a pas pu être lu</string>
     <string name="larger_text">texte plus grand</string>

@@ -7,15 +7,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.util.zip.ZipFile
 
-/** A parsed book: plain-text chapters only. Images, styles and footnote links are dropped. */
-class Book(val title: String, val chapters: List<Chapter>) {
-    class Chapter(val title: String, val paragraphs: List<String>) {
-        val length: Int = paragraphs.sumOf { it.length + 1 }
-    }
-    val totalLength: Int = chapters.sumOf { it.length }
-    fun charsBefore(chapter: Int): Int = chapters.take(chapter).sumOf { it.length }
-}
-
 enum class BookFormat { EPUB, MOBI, FB2, TXT }
 
 class UnsupportedBookException(message: String) : Exception(message)
@@ -50,7 +41,11 @@ object BookParser {
             BookFormat.TXT -> parseTxt(file.readText(), fallbackTitle)
         }
         if (book.chapters.isEmpty()) throw UnsupportedBookException("no text found")
-        return Book(book.title, splitLongChapters(book.chapters))
+        val (chapters, firstPart) = splitLongChapters(book.chapters)
+        val magazine = book.magazine?.let { m ->
+            Magazine(m.articles.map { a -> Magazine.Article(firstPart[a.chapter], a.category, a.title, a.author, a.image) })
+        }
+        return Book(book.title, chapters, magazine)
     }
 
     // ---- EPUB ------------------------------------------------------------------------
@@ -100,18 +95,72 @@ object BookParser {
             }
 
             val chapters = ArrayList<Book.Chapter>()
+            val chapterByPath = HashMap<String, Int>()
+            val htmlByChapter = ArrayList<String>()
             spine.forEachIndexed { index, idref ->
                 val (href, type) = items[idref] ?: return@forEachIndexed
                 if (type.isNotEmpty() && !type.contains("html") && !type.contains("xml")) return@forEachIndexed
                 val path = resolve(dir, href)
                 val html = read(path) ?: return@forEachIndexed
-                val paragraphs = HtmlText.toParagraphs(html)
-                if (paragraphs.isEmpty()) return@forEachIndexed
+                val chapterDir = path.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+                val blocks = HtmlText.toBlocks(html) { src ->
+                    val p = resolve(chapterDir, src)
+                    if (zip.getEntry(p) != null) p else null
+                }
+                if (blocks.isEmpty()) return@forEachIndexed
                 val chapterTitle = titles[normalize(path)] ?: HtmlText.heading(html) ?: "${index + 1}"
-                chapters += Book.Chapter(chapterTitle, paragraphs)
+                chapterByPath[normalize(path)] = chapters.size
+                htmlByChapter += html
+                chapters += Book.Chapter(chapterTitle, blocks)
+            }
+
+            // A magazine from the newspapers pipeline: the nav carries category, title and author
+            // per article (signature A), or else every article page starts with them (signature B).
+            val nav = navHref?.let { read(resolve(dir, it)) }
+            val navDir = navHref?.let { dir + it.substringBeforeLast('/', "").let { d -> if (d.isEmpty()) "" else "$d/" } } ?: dir
+            val magazine = parseMagazine(nav, navDir, chapters, chapterByPath, htmlByChapter)
+            if (magazine != null) {
+                // Only the articles are chapters: the title page and the contents page go.
+                val keep = magazine.articles.map { it.chapter }.distinct().sorted()
+                val remap = HashMap<Int, Int>(); keep.forEachIndexed { i, c -> remap[c] = i }
+                val articles = magazine.articles.map { a -> Magazine.Article(remap.getValue(a.chapter), a.category, a.title, a.author, a.image) }
+                // the article's title is the chapter's title (the nav link text also holds category and author)
+                val titleOf = HashMap<Int, String>(); magazine.articles.forEach { titleOf.putIfAbsent(it.chapter, it.title) }
+                return Book(title, keep.map { c -> Book.Chapter(titleOf[c] ?: chapters[c].title, chapters[c].blocks) }, Magazine(articles))
             }
             return Book(title, chapters)
         }
+    }
+
+    private fun parseMagazine(
+        nav: String?, navDir: String, chapters: List<Book.Chapter>, chapterByPath: Map<String, Int>, htmlByChapter: List<String>
+    ): Magazine? {
+        fun span(html: String, cls: String): String? =
+            Regex("<span\\b[^>]*class=\"[^\"]*\\b$cls\\b[^\"]*\"[^>]*>(.*?)</span>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(html)?.groupValues?.get(1)?.let { HtmlText.strip(it).trim() }?.ifBlank { null }
+        fun para(html: String, cls: String): String? =
+            Regex("<p\\b[^>]*class=\"[^\"]*\\b$cls\\b[^\"]*\"[^>]*>(.*?)</p>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(html)?.groupValues?.get(1)?.let { HtmlText.strip(it).trim() }?.ifBlank { null }
+        fun cover(chapter: Int): String? = chapters[chapter].blocks.firstOrNull { it is Block.Image }?.let { (it as Block.Image).source }
+
+        val articles = ArrayList<Magazine.Article>()
+        if (nav != null && nav.contains("toc-cat") && nav.contains("toc-title")) {
+            Regex("<li\\b[^>]*>(.*?)</li>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).findAll(nav).forEach { li ->
+                val href = Regex("<a\\b[^>]*href=\"([^\"]+)\"", RegexOption.IGNORE_CASE).find(li.value)?.groupValues?.get(1) ?: return@forEach
+                val chapter = chapterByPath[normalize(resolve(navDir, href))] ?: return@forEach
+                val title = span(li.value, "toc-title") ?: return@forEach
+                articles += Magazine.Article(chapter, span(li.value, "toc-cat") ?: "", title, span(li.value, "toc-author"), cover(chapter))
+            }
+            if (articles.isNotEmpty()) return Magazine(articles)
+        }
+        var structured = 0
+        htmlByChapter.forEachIndexed { i, html ->
+            val category = para(html, "category") ?: return@forEachIndexed
+            val title = HtmlText.heading(html) ?: return@forEachIndexed
+            structured++
+            articles += Magazine.Article(i, category, title, para(html, "author"), cover(i))
+        }
+        return if (chapters.isNotEmpty() && structured * 2 >= chapters.size) Magazine(articles) else null
     }
 
     private fun attr(tag: String, name: String): String? =
@@ -192,8 +241,8 @@ object BookParser {
         val html = String(out.toByteArray(), charset)
         val sections = html.split(Regex("<mbp:pagebreak\\s*/?>", RegexOption.IGNORE_CASE))
         val chapters = sections.mapIndexedNotNull { i, s ->
-            val paragraphs = HtmlText.toParagraphs(s)
-            if (paragraphs.isEmpty()) null else Book.Chapter(HtmlText.heading(s) ?: "${i + 1}", paragraphs)
+            val blocks = HtmlText.toBlocks(s) { null }
+            if (blocks.isEmpty()) null else Book.Chapter(HtmlText.heading(s) ?: "${i + 1}", blocks)
         }
         return Book(title, chapters)
     }
@@ -236,11 +285,11 @@ object BookParser {
             .joinToString("\n") { it.value }.ifEmpty { noBinary }
         val sections = body.split(Regex("<section\\b[^>]*>", RegexOption.IGNORE_CASE))
         val chapters = sections.mapIndexedNotNull { i, s ->
-            val paragraphs = HtmlText.toParagraphs(s)
-            if (paragraphs.isEmpty()) null
+            val blocks = HtmlText.toBlocks(s) { null }
+            if (blocks.isEmpty()) null
             else {
                 val t = Regex("<title>(.*?)</title>", RegexOption.DOT_MATCHES_ALL).find(s)?.groupValues?.get(1)?.let { HtmlText.strip(it).trim() }
-                Book.Chapter(t?.ifBlank { null } ?: "${i + 1}", paragraphs)
+                Book.Chapter(t?.ifBlank { null } ?: "${i + 1}", blocks)
             }
         }
         return Book(title, chapters)
@@ -248,35 +297,48 @@ object BookParser {
 
     private fun parseTxt(text: String, fallbackTitle: String): Book {
         val paragraphs = text.replace("\r\n", "\n").split(Regex("\n\\s*\n")).map { it.trim() }.filter { it.isNotEmpty() }
-        return Book(fallbackTitle, listOf(Book.Chapter(fallbackTitle, paragraphs)))
+        return Book(fallbackTitle, listOf(Book.Chapter(fallbackTitle, listOf(Block.Text(paragraphs.map { Para(it) })))))
     }
 
-    /** Keep chapters under ~12k characters so a single text measurement stays quick. */
-    private fun splitLongChapters(chapters: List<Book.Chapter>, max: Int = 12_000): List<Book.Chapter> {
+    /**
+     * Keep chapters under ~12k characters so a single text measurement stays quick. Also returns,
+     * for every original chapter, the index of its first part.
+     */
+    private fun splitLongChapters(chapters: List<Book.Chapter>, max: Int = 12_000): Pair<List<Book.Chapter>, IntArray> {
         val out = ArrayList<Book.Chapter>()
-        for (ch in chapters) {
-            if (ch.length <= max) { out += ch; continue }
-            var part = ArrayList<String>(); var size = 0; var n = 1
-            for (p in ch.paragraphs) {
-                if (size + p.length > max && part.isNotEmpty()) {
-                    out += Book.Chapter(if (n == 1) ch.title else "${ch.title} · $n", part); n++
-                    part = ArrayList(); size = 0
-                }
-                // A single monstrous paragraph is cut hard.
-                if (p.length > max) {
-                    var s = p
-                    while (s.length > max) {
-                        val cut = s.lastIndexOf(' ', max).let { if (it < max / 2) max else it }
-                        part += s.substring(0, cut); s = s.substring(cut).trimStart()
-                        out += Book.Chapter(if (n == 1) ch.title else "${ch.title} · $n", part); n++
-                        part = ArrayList(); size = 0
-                    }
-                    if (s.isNotEmpty()) { part += s; size += s.length }
-                } else { part += p; size += p.length + 1 }
+        val firstPart = IntArray(chapters.size)
+        chapters.forEachIndexed { ci, ch ->
+            firstPart[ci] = out.size
+            if (ch.length <= max) { out += ch; return@forEachIndexed }
+            var n = 1
+            var blocks = ArrayList<Block>()
+            var part = ArrayList<Para>()
+            var size = 0
+            fun flushText() { if (part.isNotEmpty()) { blocks += Block.Text(part); part = ArrayList() } }
+            fun flushPart() {
+                flushText()
+                if (blocks.isNotEmpty()) { out += Book.Chapter(if (n == 1) ch.title else "${ch.title} · $n", blocks); n++ }
+                blocks = ArrayList(); size = 0
             }
-            if (part.isNotEmpty()) out += Book.Chapter(if (n == 1) ch.title else "${ch.title} · $n", part)
+            for (block in ch.blocks) {
+                if (block is Block.Image) { flushText(); blocks += block; size += 1; continue }
+                for (p in (block as Block.Text).paragraphs) {
+                    if (size + p.text.length > max && (part.isNotEmpty() || blocks.isNotEmpty())) flushPart()
+                    // A single monstrous paragraph is cut hard.
+                    if (p.text.length > max) {
+                        var t = p.text
+                        while (t.length > max) {
+                            val cut = t.lastIndexOf(' ', max).let { if (it < max / 2) max else it }
+                            part += Para(t.substring(0, cut), p.kind); t = t.substring(cut).trimStart()
+                            flushPart()
+                        }
+                        if (t.isNotEmpty()) { part += Para(t, p.kind); size += t.length }
+                    } else { part += p; size += p.text.length + 1 }
+                }
+            }
+            flushPart()
         }
-        return out
+        return Pair(out, firstPart)
     }
 }
 
@@ -294,21 +356,66 @@ object HtmlText {
     private val anyTag = Regex("<[^>]+>")
     private val headingRe = Regex("<h[1-3]\\b[^>]*>(.*?)</h[1-3]>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
 
-    fun toParagraphs(html: String): List<String> {
+    private val svgImage = Regex("<image\\b[^>]*?(?:xlink:)?href=\"([^\"]+)\"[^>]*>", RegexOption.IGNORE_CASE)
+    private val img = Regex("<img\\b[^>]*?src=\"([^\"]+)\"[^>]*>", RegexOption.IGNORE_CASE)
+    private val headingOpen = Regex("<h[1-6]\\b[^>]*>", RegexOption.IGNORE_CASE)
+    private val classed = Regex("<(p|div)\\b[^>]*class=\"([^\"]*)\"[^>]*>", RegexOption.IGNORE_CASE)
+    private const val MARK = '\u0001'
+    private const val IMG = "\u0002"
+
+    /**
+     * Paragraphs with their kind, and the images between them. `image` maps an `src` to the
+     * source the reader can load, or null to drop it. Markers are single control characters
+     * placed before tags are stripped, so the split into paragraphs stays the same as before.
+     */
+    fun toBlocks(html: String, image: (String) -> String?): List<Block> {
         var s = html
-        s = dropBlocks.replace(s, " ")
         s = comments.replace(s, "")
+        s = svgImage.replace(s) { m -> "<img src=\"${m.groupValues[1]}\"/>" }
+        s = img.replace(s) { m -> image(m.groupValues[1])?.let { "\n\n$IMG$it\n\n" } ?: " " }
+        s = dropBlocks.replace(s, " ")
+        s = headingOpen.replace(s) { m -> m.value + MARK + "H" }
+        s = classed.replace(s) { m ->
+            val c = m.groupValues[2].lowercase()
+            when {
+                Regex("\\blead\\b|\\bchapo\\b|\\bstandfirst\\b").containsMatchIn(c) -> m.value + MARK + "L"
+                Regex("\\bcategory\\b|\\bauthor\\b|\\bbyline\\b|caption|\\bcredit\\b|\\bseparator\\b").containsMatchIn(c) -> m.value + MARK + "S"
+                else -> m.value
+            }
+        }
         s = lineBreak.replace(s, "\n")
         s = paragraphBreak.replace(s, "\n\n")
         s = anyTag.replace(s, "")
         s = decode(s)
         s = s.replace(Regex("[ \\t\\r\\u00A0\\u2007\\u202F]+"), " ")
-        return s.split(Regex("\n\\s*\n")).map { para ->
-            para.split('\n').map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
-        }.filter { it.isNotEmpty() }
+        val blocks = ArrayList<Block>()
+        var paras = ArrayList<Para>()
+        s.split(Regex("\n\\s*\n")).forEach { raw ->
+            val para = raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
+            if (para.isEmpty()) return@forEach
+            if (para.startsWith(IMG)) {
+                if (paras.isNotEmpty()) { blocks += Block.Text(paras); paras = ArrayList() }
+                blocks += Block.Image(para.substring(1).substringBefore('\n').trim())
+                return@forEach
+            }
+            var kind = ParaKind.NORMAL
+            var text = para
+            while (text.isNotEmpty() && text[0] == MARK && text.length > 1) {
+                kind = when (text[1]) { 'H' -> ParaKind.HEADING; 'L' -> ParaKind.LEAD; 'S' -> ParaKind.SMALL; else -> kind }
+                text = text.substring(2).trimStart()
+            }
+            text = text.replace(Regex("$MARK[HLS]"), "")
+            if (text == "---" || text == "♦") return@forEach // the pipeline's separators
+            if (text.isNotEmpty()) paras += Para(text, kind)
+        }
+        if (paras.isNotEmpty()) blocks += Block.Text(paras)
+        return blocks
     }
 
-    fun strip(html: String): String = decode(anyTag.replace(html, "")).replace(Regex("\\s+"), " ")
+    /** Plain paragraphs, for callers that only want text. */
+    fun toParagraphs(html: String): List<String> = toBlocks(html) { null }.filterIsInstance<Block.Text>().flatMap { b -> b.paragraphs.map { it.text } }
+
+    fun strip(html: String): String = decode(anyTag.replace(html, "")).replace(Regex("[\\u0001\\u0002]"), "").replace(Regex("\\s+"), " ")
 
     fun heading(html: String): String? =
         headingRe.find(html)?.groupValues?.get(1)?.let { strip(it).trim() }?.takeIf { it.isNotBlank() && it.length < 120 }

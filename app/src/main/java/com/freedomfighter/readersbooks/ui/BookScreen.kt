@@ -3,11 +3,25 @@ package com.freedomfighter.readersbooks.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.text.Layout
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -54,8 +68,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
+import com.freedomfighter.readersbooks.books.Block
 import com.freedomfighter.readersbooks.books.Book
 import com.freedomfighter.readersbooks.books.Entry
+import com.freedomfighter.readersbooks.books.ImageStore
+import com.freedomfighter.readersbooks.books.Magazine
+import com.freedomfighter.readersbooks.books.ParaKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,7 +106,8 @@ fun BookScreen(nav: Nav, app: App, id: String) {
             TextMenu(
                 title = entry.title,
                 items = buildList {
-                    add(MenuItem(stringResource(R.string.chapters)) { nav.push(Screen.Chapters(id)) })
+                    if (entry.magazine) add(MenuItem(stringResource(R.string.contents)) { nav.home(); nav.push(Screen.Chapters(id)) })
+                    else add(MenuItem(stringResource(R.string.chapters)) { nav.push(Screen.Chapters(id)) })
                     add(MenuItem(stringResource(R.string.larger_text), "$current → ${(current + 2).coerceAtMost(40)}") { app.prefs.setReaderSp((current + 2).coerceAtMost(40)) })
                     add(MenuItem(stringResource(R.string.smaller_text), "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) })
                     add(MenuItem(stringResource(R.string.remove)) { app.library.remove(id); nav.pop() })
@@ -104,22 +123,31 @@ fun BookScreen(nav: Nav, app: App, id: String) {
 }
 
 /**
- * Text layout of one chapter at the current width/size, plus its page boundaries (line indices).
- * Built on android.text.StaticLayout, the same engine used by working open-source readers:
- * getLineTop/getLineBottom describe exactly what StaticLayout.draw paints, so a page holds
- * only whole lines and nothing is clipped or repeated.
+ * One chapter laid out at the current width/size: pages made of whole text lines and of
+ * pictures. Text goes through android.text.StaticLayout, the same engine used by working
+ * open-source readers: getLineTop/getLineBottom describe exactly what StaticLayout.draw paints,
+ * so a page holds only whole lines and nothing is clipped or repeated. A picture is a box
+ * scaled to the text width (never taller than the page) that moves to the next page whole.
  */
-private class ChapterLayout(val layout: StaticLayout, val pageStarts: List<Int>, val pageHeight: Int) {
-    val pageCount: Int get() = pageStarts.size
-    fun pageTop(page: Int): Int = layout.getLineTop(pageStarts[page])
-    fun pageBottom(page: Int): Int {
-        val lastLine = if (page + 1 < pageStarts.size) pageStarts[page + 1] - 1 else layout.lineCount - 1
-        return layout.getLineBottom(lastLine)
+private sealed class Piece(val y: Int, val charBase: Int) {
+    class Lines(y: Int, charBase: Int, val layout: StaticLayout, val first: Int, val last: Int) : Piece(y, charBase) {
+        val top: Int get() = layout.getLineTop(first)
+        val height: Int get() = layout.getLineBottom(last) - top
+        val startChar: Int get() = charBase + layout.getLineStart(first)
     }
-    fun pageStartChar(page: Int): Int = layout.getLineStart(pageStarts[page])
+    class Picture(y: Int, charBase: Int, val source: String, val width: Int, val height: Int) : Piece(y, charBase)
+}
+
+private class PageDef(val pieces: List<Piece>) {
+    val startChar: Int = pieces.firstOrNull()?.let { if (it is Piece.Lines) it.startChar else it.charBase } ?: 0
+}
+
+private class ChapterLayout(val pages: List<PageDef>) {
+    val pageCount: Int get() = pages.size
+    fun pageStartChar(page: Int): Int = pages[page].startChar
     fun pageFor(charOffset: Int): Int {
         var p = 0
-        for (i in pageStarts.indices) if (pageStartChar(i) <= charOffset) p = i else break
+        for (i in pages.indices) if (pages[i].startChar <= charOffset) p = i else break
         return p
     }
 }
@@ -133,20 +161,77 @@ private fun buildLayout(text: CharSequence, paint: TextPaint, widthPx: Int, spac
         .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
         .build()
 
-private fun paginate(layout: StaticLayout, pageHeight: Int): ChapterLayout {
-    val starts = ArrayList<Int>()
-    var line = 0
-    while (line < layout.lineCount) {
-        starts += line
-        val top = layout.getLineTop(line)
-        var l = line
-        // A line belongs to the page only if its whole box fits.
-        while (l < layout.lineCount && layout.getLineBottom(l) - top <= pageHeight) l++
-        if (l == line) l++ // a single line taller than the page
-        line = l
+private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: Int, pageHeight: Int, images: ImageStore): ChapterLayout {
+    val pages = ArrayList<PageDef>()
+    var pieces = ArrayList<Piece>()
+    var y = 0
+    var charBase = 0
+    val gap = (paint.textSize * 0.8f).toInt()
+    fun newPage() { if (pieces.isNotEmpty()) { pages += PageDef(pieces); pieces = ArrayList() }; y = 0 }
+    for (block in ch.blocks) when (block) {
+        is Block.Text -> {
+            val layout = buildLayout(blockText(block, dimArgb), paint, widthPx, 1.45f)
+            if (y > 0) y += gap
+            var line = 0
+            while (line < layout.lineCount) {
+                val top = layout.getLineTop(line)
+                var l = line
+                // A line belongs to the page only if its whole box fits.
+                while (l < layout.lineCount && layout.getLineBottom(l) - top <= pageHeight - y) l++
+                if (l == line) {
+                    if (y > 0) { newPage(); continue } // try again at the top of a fresh page
+                    l++ // a single line taller than the page
+                }
+                pieces += Piece.Lines(y, charBase, layout, line, l - 1)
+                y += layout.getLineBottom(l - 1) - top
+                line = l
+                if (line < layout.lineCount) newPage()
+            }
+            charBase += block.length
+        }
+        is Block.Image -> {
+            val size = images.size(block.source)
+            if (size != null && size.width >= 48 && size.height >= 48) {
+                var w = widthPx
+                var h = (w.toLong() * size.height / size.width).toInt()
+                if (h > pageHeight) { h = pageHeight; w = (h.toLong() * size.width / size.height).toInt() }
+                if (y > 0) y += gap
+                if (y + h > pageHeight) newPage()
+                pieces += Piece.Picture(y, charBase, block.source, w, h)
+                y += h
+            }
+            charBase += 1
+        }
     }
-    if (starts.isEmpty()) starts += 0
-    return ChapterLayout(layout, starts, pageHeight)
+    newPage()
+    if (pages.isEmpty()) pages += PageDef(emptyList())
+    return ChapterLayout(pages)
+}
+
+/**
+ * One single string for a run of paragraphs. Multi-paragraph layouts report line tops and
+ * bottoms that do not match what is drawn once a line height is set (paragraph boundaries
+ * trim differently), which clipped the last line of a page and repeated it on the next.
+ * Indentation is therefore made of em spaces instead of a paragraph style; headings, leads and
+ * small print are spans on the same string.
+ */
+private fun blockText(block: Block.Text, dimArgb: Int): CharSequence {
+    val sb = SpannableStringBuilder()
+    block.paragraphs.forEachIndexed { i, p ->
+        if (i > 0) sb.append("\n")
+        val start = sb.length
+        val indent = i > 0 && p.kind == ParaKind.NORMAL && block.paragraphs[i - 1].kind == ParaKind.NORMAL
+        if (indent) sb.append("\u2003\u2003")
+        sb.append(if (indent) p.text.replace("\n", "\n\u2003\u2003") else p.text)
+        val end = sb.length
+        when (p.kind) {
+            ParaKind.HEADING -> { sb.setSpan(RelativeSizeSpan(1.3f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+            ParaKind.LEAD -> sb.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            ParaKind.SMALL -> { sb.setSpan(RelativeSizeSpan(0.8f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(ForegroundColorSpan(dimArgb), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+            ParaKind.NORMAL -> Unit
+        }
+    }
+    return sb
 }
 
 @Composable
@@ -205,6 +290,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         var canvasHeight by remember { mutableStateOf(0) }
         val pageHeightPx = if (canvasHeight > 0) canvasHeight.toFloat() else estimatedHeightPx
         val fgArgb = colors.fg.toArgb()
+        val dimArgb = colors.dim.toArgb()
+        val images = remember(entry.fileName) { app.library.images(entry) }
+        val bitmapPaint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
         val paint = remember(readerSp, typo.family, typo.weight, fgArgb, density) {
             TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
                 color = fgArgb
@@ -217,9 +305,8 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             }
         }
         val ch = b.chapters[chapter]
-        val text = remember(ch) { chapterText(ch) }
-        val layout = remember(text, widthPx, paint, pageHeightPx) {
-            paginate(buildLayout(text, paint, widthPx, 1.45f), pageHeightPx.toInt())
+        val layout = remember(ch, widthPx, paint, dimArgb, pageHeightPx) {
+            paginate(ch, paint, dimArgb, widthPx, pageHeightPx.toInt(), images)
         }
         // Resolve the wanted character into a page whenever the layout (size, width) changes.
         LaunchedEffect(layout) { page = layout.pageFor(wantedChar).coerceIn(0, layout.pageCount - 1) }
@@ -243,6 +330,14 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         }
 
         val safePage = page.coerceIn(0, layout.pageCount - 1)
+        val pageDef = layout.pages[safePage]
+        // Pictures of this page, decoded off the main thread; the canvas draws what has arrived.
+        val bitmaps by produceState<Map<String, Bitmap>>(emptyMap(), pageDef) {
+            val wanted = pageDef.pieces.filterIsInstance<Piece.Picture>()
+            if (wanted.isNotEmpty()) value = withContext(Dispatchers.IO) {
+                wanted.mapNotNull { p -> images.bitmap(p.source, p.width)?.let { p.source to it } }.toMap()
+            }
+        }
         val progress = ((b.charsBefore(chapter) + layout.pageStartChar(safePage)).toFloat() / b.totalLength.coerceAtLeast(1) * 100).toInt()
 
         Column(
@@ -264,16 +359,23 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             Canvas(Modifier.weight(1f).fillMaxWidth().onSizeChanged { canvasHeight = it.height }) {
                 drawIntoCanvas { c ->
                     val n = c.nativeCanvas
-                    val top = layout.pageTop(safePage)
-                    // Clip to the bottom of this page's last whole line, not to the canvas: the
-                    // layout paints every line that intersects the clip, so clipping to the canvas
-                    // would show a sliver of the next page's first line under the last one.
-                    val bottom = layout.pageBottom(safePage)
-                    n.save()
-                    n.clipRect(0f, 0f, size.width, (bottom - top).toFloat().coerceAtMost(size.height))
-                    n.translate(0f, -top.toFloat())
-                    layout.layout.draw(n)
-                    n.restore()
+                    for (piece in pageDef.pieces) when (piece) {
+                        is Piece.Lines -> {
+                            // Clip to the bottom of this piece's last whole line, not to the canvas:
+                            // the layout paints every line that intersects the clip, so clipping to
+                            // the canvas would show a sliver of the next line under the last one.
+                            n.save()
+                            n.clipRect(0f, piece.y.toFloat(), size.width, (piece.y + piece.height).toFloat().coerceAtMost(size.height))
+                            n.translate(0f, (piece.y - piece.top).toFloat())
+                            piece.layout.draw(n)
+                            n.restore()
+                        }
+                        is Piece.Picture -> {
+                            val bmp = bitmaps[piece.source] ?: continue
+                            val left = ((size.width - piece.width) / 2).toInt()
+                            n.drawBitmap(bmp, null, Rect(left, piece.y, left + piece.width, piece.y + piece.height), bitmapPaint)
+                        }
+                    }
                 }
             }
             Row(Modifier.fillMaxWidth().height(footerHeight).padding(bottom = 0.dp), verticalAlignment = Alignment.Bottom) {
@@ -283,19 +385,6 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             }
             VSpace(bottomPad)
         }
-    }
-}
-
-/**
- * One single paragraph for the whole chapter. Multi-paragraph layouts report line tops and
- * bottoms that do not match what is drawn once a line height is set (paragraph boundaries
- * trim differently), which clipped the last line of a page and repeated it on the next.
- * Indentation is therefore made of em spaces instead of a paragraph style.
- */
-private fun chapterText(ch: Book.Chapter): String = buildString {
-    ch.paragraphs.forEachIndexed { i, p ->
-        if (i > 0) append("\n\u2003\u2003")
-        append(p.replace("\n", "\n\u2003\u2003"))
     }
 }
 
@@ -322,7 +411,7 @@ private fun KeepScreenOn(lastTurn: Long) {
     }
 }
 
-/** Table of contents: tap a chapter to jump there. */
+/** Table of contents: tap a chapter to jump there. A magazine lists its articles by section. */
 @Composable
 fun BookChaptersScreen(nav: Nav, app: App, id: String) {
     val books by app.library.books.collectAsState()
@@ -334,6 +423,14 @@ fun BookChaptersScreen(nav: Nav, app: App, id: String) {
     Page {
         Column(Modifier.fillMaxSize()) {
             ScreenTitle(entry.title, onBack = { nav.pop() })
+            val magazine = book?.magazine
+            if (magazine != null) {
+                MagazineContents(magazine, entry, app, listState) { article ->
+                    app.library.savePosition(entry.id, article.chapter, 0, entry.progress)
+                    nav.push(Screen.Book(id))
+                }
+                return@Column
+            }
             val chapters = book?.chapters ?: emptyList()
             val entries = chapters.withIndex().filter { (i, ch) -> i == 0 || !ch.title.startsWith(chapters[i - 1].title.substringBefore(" · ") + " · ") }
             val currentEntry = entries.lastOrNull { it.index <= entry.chapter }?.index
@@ -347,4 +444,52 @@ fun BookChaptersScreen(nav: Nav, app: App, id: String) {
             }
         }
     }
+}
+
+/** Articles under their section names, each with its author and cover picture. */
+@Composable
+private fun MagazineContents(magazine: Magazine, entry: Entry, app: App, listState: androidx.compose.foundation.lazy.LazyListState, onOpen: (Magazine.Article) -> Unit) {
+    val colors = LocalColors.current
+    val typo = LocalTypo.current
+    val images = remember(entry.fileName) { app.library.images(entry) }
+    val current = magazine.articles.lastOrNull { it.chapter <= entry.chapter && entry.opened > 0L }
+    LazyColumn(state = listState, contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
+        magazine.articles.forEachIndexed { i, a ->
+            if (a.category.isNotEmpty() && (i == 0 || a.category != magazine.articles[i - 1].category)) {
+                item(key = "s$i") {
+                    Small(a.category.uppercase(), Modifier.padding(start = rowPadH, end = rowPadH, top = rowPadV * 0.9f, bottom = 2.dp), maxLines = 1, align = TextAlign.Start)
+                }
+            }
+            item(key = "a$i") {
+                val inverted = a === current
+                val fg = if (inverted) colors.bg else colors.fg
+                val dim = if (inverted) colors.bg.copy(alpha = 0.6f) else colors.dim
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(if (inverted) colors.fg else androidx.compose.ui.graphics.Color.Transparent)
+                        .noRippleClickable { onOpen(a) }
+                        .padding(horizontal = rowPadH, vertical = rowPadV * 0.6f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        T(a.title, size = typo.title, color = fg, maxLines = 3, align = TextAlign.Start)
+                        if (a.author != null) Small(a.author, color = dim, maxLines = 1, align = TextAlign.Start)
+                    }
+                    if (a.image != null) {
+                        Spacer(Modifier.width(14.dp))
+                        Thumb(images, a.image)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Thumb(images: ImageStore, source: String) {
+    val px = with(LocalDensity.current) { 72.dp.roundToPx() }
+    val bmp by produceState<Bitmap?>(null, source) { value = withContext(Dispatchers.IO) { images.bitmap(source, px * 2) } }
+    val b = bmp
+    if (b != null) Image(b.asImageBitmap(), contentDescription = null, Modifier.size(72.dp), contentScale = ContentScale.Crop)
+    else Box(Modifier.size(72.dp))
 }

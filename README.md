@@ -16,7 +16,11 @@ network permission. It extends the built-in reader of
   app. Books are copied into the app, so the original can move.
 * The position is kept per book and survives a change of text size or screen. The screen
   stays on while a page is open, until fifteen minutes after the last turn.
-* Text only: images, styles and footnote links are dropped. MOBI means PalmDoc; no PDF.
+* Pictures in EPUBs are shown in the page, scaled to the text width and never cut; styles and
+  footnote links are dropped. MOBI means PalmDoc; no PDF.
+* A magazine issue (an EPUB whose contents page carries a section, a title and an author per
+  article, as the newspapers pipeline writes them) opens on its contents: sections, titles,
+  authors and cover pictures. An article is a chapter; back returns to the contents.
 * One home-screen widget for any launcher: the book being read and the position; tap carries
   on at the current page. The launcher's book tile shows the same.
 

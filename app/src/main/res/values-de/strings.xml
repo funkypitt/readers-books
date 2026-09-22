@@ -8,6 +8,7 @@
     <string name="not_started">nicht begonnen</string>
     <string name="read">lesen</string>
     <string name="chapters">Kapitel</string>
+    <string name="contents">Inhalt</string>
     <string name="remove">aus dem Regal nehmen</string>
     <string name="reader_unsupported">diese Datei konnte nicht gelesen werden</string>
     <string name="larger_text">größerer Text</string>

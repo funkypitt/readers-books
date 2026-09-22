@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             val r = withContext(Dispatchers.IO) { app.library.import(uri!!) }
             nav.importing = false
             nav.importFailed = r.isFailure
-            r.getOrNull()?.let { nav.home(); nav.push(Screen.Book(it.id)) }
+            r.getOrNull()?.let { nav.home(); nav.push(if (it.magazine) Screen.Chapters(it.id) else Screen.Book(it.id)) }
         }
     }
 
