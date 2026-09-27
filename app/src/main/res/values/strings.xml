@@ -28,9 +28,14 @@
     <string name="theme_dark">white on black</string>
     <string name="theme_light">black on white</string>
     <string name="colours">colours</string>
-    <string name="about">plain-text pages cut at whole lines; epub, mobi, fb2, txt</string>
+    <string name="about">reads epub, mobi, fb2 and txt files</string>
     <string name="credits">Pierre Gallaz · developed with Claude Code</string>
     <string name="widget_line_name">Reader\'s Books · current book</string>
     <string name="widget_line_desc">the book you were reading; tap to carry on</string>
     <string name="widget_caption">book</string>
+    <string name="yesterday">yesterday</string>
+    <string name="reading_size_auto">%1$d · auto</string>
+    <string name="font_serif">serif</string>
+    <string name="font_sans">sans-serif</string>
+    <string name="font_mono">mono</string>
 </resources>

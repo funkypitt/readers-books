@@ -9,7 +9,7 @@ import java.io.File
 class ParserTest {
     @Test
     fun fixtures() {
-        val dir = File(System.getProperty("fixtures") ?: return)
+        val dir = File(System.getProperty("fixtures")?.takeIf { it.isNotBlank() } ?: return)
         dir.listFiles { f -> f.name.endsWith(".epub") }!!.sorted().forEach { f ->
             val b = BookParser.parse(f, BookFormat.EPUB, f.name)
             val images = b.chapters.sumOf { c -> c.blocks.count { it is Block.Image } }

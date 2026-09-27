@@ -26,9 +26,14 @@
     <string name="theme_dark">белым по чёрному</string>
     <string name="theme_light">чёрным по белому</string>
     <string name="colours">цвета</string>
-    <string name="about">страницы текста, разрезанные по целым строкам; epub, mobi, fb2, txt</string>
+    <string name="about">читает файлы epub, mobi, fb2 и txt</string>
     <string name="credits">Pierre Gallaz · разработано с Claude Code</string>
     <string name="widget_line_name">Reader\'s Books · текущая книга</string>
     <string name="widget_line_desc">текущая книга, нажмите, чтобы продолжить</string>
     <string name="widget_caption">книга</string>
+    <string name="yesterday">вчера</string>
+    <string name="reading_size_auto">%1$d · авто</string>
+    <string name="font_serif">с засечками</string>
+    <string name="font_sans">без засечек</string>
+    <string name="font_mono">моноширинный</string>
 </resources>
