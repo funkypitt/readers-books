@@ -17,6 +17,7 @@
     <string name="auto_size">автоматический размер</string>
     <string name="auto_size_hint">по ширине экрана</string>
     <string name="ui_size">размер полки и меню</string>
+    <string name="book_text">текст книг</string>
     <string name="font">шрифт</string>
     <string name="keep_screen_on">не гасить экран при чтении</string>
     <string name="haptics">лёгкая вибрация</string>

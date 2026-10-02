@@ -19,6 +19,7 @@
     <string name="auto_size">automatic size</string>
     <string name="auto_size_hint">from the screen width</string>
     <string name="ui_size">size of the shelf and menus</string>
+    <string name="book_text">book text</string>
     <string name="font">font</string>
     <string name="keep_screen_on">keep the screen on while reading</string>
     <string name="haptics">haptic tick</string>

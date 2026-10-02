@@ -11,7 +11,8 @@ network permission. It extends the built-in reader of
 
 * The shelf lists title, how far you are, when you last opened it. Tap to read.
 * The right half of the screen turns forward, the left half back. Long press opens the menu:
-  chapters, larger or smaller text, back to the shelf, remove.
+  chapters, larger or smaller text, book text in sans-serif or serif (Literata), back to the
+  shelf, remove.
 * Add a book from the shelf, from a file manager ("open with"), or by sharing the file to the
   app. Books are copied into the app, so the original can move.
 * The position is kept per book and survives a change of text size or screen. The screen

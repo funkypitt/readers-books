@@ -18,7 +18,9 @@ data class Settings(
     val haptics: Boolean = true,
     /** Reading size in sp; 0 = from the screen width. */
     val readerSp: Int = 0,
-    val keepScreenOn: Boolean = true
+    val keepScreenOn: Boolean = true,
+    /** Book text in the serif reading face (Literata) instead of the sans-serif one. */
+    val bookSerif: Boolean = false
 )
 
 class Prefs(context: Context) {
@@ -35,7 +37,9 @@ class Prefs(context: Context) {
         align = enumOr(sp.getString("align", null), Align.LEFT),
         haptics = sp.getBoolean("haptics", true),
         readerSp = sp.getInt("reader_sp", 0),
-        keepScreenOn = sp.getBoolean("keep_screen_on", true)
+        keepScreenOn = sp.getBoolean("keep_screen_on", true),
+        // Never chosen: a serif app font used to give serif pages, and still does.
+        bookSerif = if (sp.contains("book_serif")) sp.getBoolean("book_serif", false) else sp.getString("font", null) == FontChoice.SERIF.name
     )
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =
         name?.let { runCatching { enumValueOf<E>(it) }.getOrNull() } ?: default
@@ -46,6 +50,7 @@ class Prefs(context: Context) {
     fun setAlign(a: Align) = sp.edit().putString("align", a.name).apply()
     fun setHaptics(v: Boolean) = sp.edit().putBoolean("haptics", v).apply()
     fun setReaderSp(v: Int) = sp.edit().putInt("reader_sp", v).apply()
+    fun setBookSerif(v: Boolean) = sp.edit().putBoolean("book_serif", v).apply()
     fun setKeepScreenOn(v: Boolean) = sp.edit().putBoolean("keep_screen_on", v).apply()
     fun toggleTheme(systemIsDark: Boolean) {
         val dark = when (_settings.value.theme) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> systemIsDark }

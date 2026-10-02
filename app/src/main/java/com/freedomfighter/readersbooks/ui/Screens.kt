@@ -145,6 +145,7 @@ fun SettingsScreen(nav: Nav, app: App) {
                 TextRow(if (s.readerSp == 0) stringResource(R.string.reading_size_auto, current) else "$current", secondary = stringResource(R.string.reading_size)) { app.prefs.setReaderSp((current + 2).coerceAtMost(40)) }
                 TextRow(stringResource(R.string.smaller_text), secondary = "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) }
                 TextRow(stringResource(R.string.auto_size), secondary = stringResource(R.string.auto_size_hint)) { app.prefs.setReaderSp(0) }
+                TextRow(stringResource(if (s.bookSerif) R.string.font_serif else R.string.font_sans), secondary = stringResource(R.string.book_text)) { app.prefs.setBookSerif(!s.bookSerif) }
                 TextRow(when (s.font) { FontChoice.SANS -> stringResource(R.string.font_sans); FontChoice.SERIF -> stringResource(R.string.font_serif); FontChoice.MONO -> stringResource(R.string.font_mono) }, secondary = stringResource(R.string.font)) {
                     app.prefs.setFont(when (s.font) { FontChoice.SANS -> FontChoice.SERIF; FontChoice.SERIF -> FontChoice.MONO; FontChoice.MONO -> FontChoice.SANS })
                 }
@@ -156,6 +157,7 @@ fun SettingsScreen(nav: Nav, app: App) {
                 Rule(Modifier.padding(vertical = 8.dp))
                 TextRow(stringResource(R.string.app_name), secondary = stringResource(R.string.about)) { }
                 TextRow(stringResource(R.string.credits)) { }
+                TextRow("Literata", secondary = "The Literata Project Authors · SIL Open Font License 1.1") { }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }

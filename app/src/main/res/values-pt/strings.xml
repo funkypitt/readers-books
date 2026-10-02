@@ -17,6 +17,7 @@
     <string name="auto_size">tamanho automático</string>
     <string name="auto_size_hint">a partir da largura do ecrã</string>
     <string name="ui_size">tamanho da estante e dos menus</string>
+    <string name="book_text">texto dos livros</string>
     <string name="font">letra</string>
     <string name="keep_screen_on">manter o ecrã ligado ao ler</string>
     <string name="haptics">resposta háptica</string>

@@ -17,6 +17,7 @@
     <string name="auto_size">automatische Größe</string>
     <string name="auto_size_hint">aus der Bildschirmbreite</string>
     <string name="ui_size">Größe von Regal und Menüs</string>
+    <string name="book_text">Buchtext</string>
     <string name="font">Schrift</string>
     <string name="keep_screen_on">Bildschirm beim Lesen anlassen</string>
     <string name="haptics">haptisches Feedback</string>

@@ -17,6 +17,7 @@
     <string name="auto_size">taille automatique</string>
     <string name="auto_size_hint">d\'après la largeur de l\'écran</string>
     <string name="ui_size">taille de l\'étagère et des menus</string>
+    <string name="book_text">texte des livres</string>
     <string name="font">police</string>
     <string name="keep_screen_on">garder l\'écran allumé en lisant</string>
     <string name="haptics">vibration légère</string>

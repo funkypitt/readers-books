@@ -110,6 +110,7 @@ fun BookScreen(nav: Nav, app: App, id: String) {
                     else add(MenuItem(stringResource(R.string.chapters)) { nav.push(Screen.Chapters(id)) })
                     add(MenuItem(stringResource(R.string.larger_text), "$current → ${(current + 2).coerceAtMost(40)}") { app.prefs.setReaderSp((current + 2).coerceAtMost(40)) })
                     add(MenuItem(stringResource(R.string.smaller_text), "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) })
+                    add(MenuItem(stringResource(R.string.book_text), stringResource(if (settings.bookSerif) R.string.font_serif else R.string.font_sans) + " → " + stringResource(if (settings.bookSerif) R.string.font_sans else R.string.font_serif)) { app.prefs.setBookSerif(!settings.bookSerif) })
                     add(MenuItem(stringResource(R.string.remove)) { app.library.remove(id); nav.pop() })
                 },
                 footer = listOf(
@@ -152,6 +153,15 @@ private class ChapterLayout(val pages: List<PageDef>) {
     }
 }
 
+/**
+ * Lines sit 1.7 em apart whatever the face: 1.45 times the line of the system fonts, less for
+ * a face that is drawn with tall line boxes of its own (Literata).
+ */
+private fun lineSpacing(paint: TextPaint): Float {
+    val natural = paint.fontMetrics.let { it.descent - it.ascent } / paint.textSize
+    return if (natural > 1.3f) 1.7f / natural else 1.45f
+}
+
 private fun buildLayout(text: CharSequence, paint: TextPaint, widthPx: Int, spacingMul: Float): StaticLayout =
     StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx.coerceAtLeast(1))
         .setAlignment(Layout.Alignment.ALIGN_NORMAL)
@@ -170,7 +180,7 @@ private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: 
     fun newPage() { if (pieces.isNotEmpty()) { pages += PageDef(pieces); pieces = ArrayList() }; y = 0 }
     for (block in ch.blocks) when (block) {
         is Block.Text -> {
-            val layout = buildLayout(blockText(block, dimArgb), paint, widthPx, 1.45f)
+            val layout = buildLayout(blockText(block, dimArgb), paint, widthPx, lineSpacing(paint))
             if (y > 0) y += gap
             var line = 0
             while (line < layout.lineCount) {
@@ -293,14 +303,15 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         val dimArgb = colors.dim.toArgb()
         val images = remember(entry.fileName) { app.library.images(entry) }
         val bitmapPaint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
-        val paint = remember(readerSp, typo.family, typo.weight, fgArgb, density) {
+        val context = LocalContext.current
+        val paint = remember(readerSp, settings.bookSerif, typo.family, fgArgb, density) {
             TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
                 color = fgArgb
                 textSize = with(density) { readerSp.sp.toPx() }
-                typeface = when (typo.family) {
-                    FontFamily.Serif -> Typeface.SERIF
-                    FontFamily.Monospace -> Typeface.MONOSPACE
-                    else -> if (typo.weight == FontWeight.Light) Typeface.create("sans-serif-light", Typeface.NORMAL) else Typeface.SANS_SERIF
+                typeface = when {
+                    settings.bookSerif -> context.resources.getFont(R.font.literata)
+                    typo.family == FontFamily.Monospace -> Typeface.MONOSPACE
+                    else -> Typeface.create("sans-serif-light", Typeface.NORMAL)
                 }
             }
         }
