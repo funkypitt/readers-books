@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Used only for the optional library (a WebDAV server or a kDrive share link). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Only apps signed with the same key (Reader's Launcher) may read the shelf. -->
     <permission
         android:name="com.freedomfighter.readersbooks.permission.ACCESS"
@@ -72,5 +74,13 @@
             android:authorities="com.freedomfighter.readersbooks"
             android:exported="true"
             android:permission="com.freedomfighter.readersbooks.permission.ACCESS" />
+        <!-- The credentials file handed to the share menu. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.credentials"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/credentials_paths" />
+        </provider>
     </application>
 </manifest>

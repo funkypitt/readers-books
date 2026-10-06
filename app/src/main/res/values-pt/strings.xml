@@ -37,4 +37,40 @@
     <string name="font_serif">com serifa</string>
     <string name="font_sans">sem serifa</string>
     <string name="font_mono">monoespaçada</string>
+    <!-- library: a drive's e-books by folder -->
+    <string name="library">biblioteca</string>
+    <string name="library_hint">Livros guardados numa drive, listados por pasta; um livro só é descarregado quando lhe toca. Cole a ligação de uma partilha pública kDrive, ou indique o endereço WebDAV da drive com um nome de utilizador e uma palavra-passe de aplicação. A drive é então percorrida à procura de ficheiros epub, mobi, azw e fb2.</string>
+    <string name="share_link">ligação de partilha kDrive</string>
+    <string name="webdav_url">endereço WebDAV</string>
+    <string name="username">nome de utilizador</string>
+    <string name="password">palavra-passe</string>
+    <string name="scan_again">percorrer a drive de novo</string>
+    <string name="scanning">a percorrer… %1$d pastas, %2$d livros</string>
+    <string name="scanned_at">percorrida a %1$s</string>
+    <string name="no_books_found">nenhum livro eletrónico encontrado na drive (epub, mobi, azw, fb2)</string>
+    <string name="root_folder">raiz da drive</string>
+    <string name="order">ordem</string>
+    <string name="sort_name">por nome</string>
+    <string name="sort_newest">mais recentes primeiro</string>
+    <string name="sort_oldest">mais antigos primeiro</string>
+    <string name="downloading">a descarregar…</string>
+    <string name="on_shelf">na estante</string>
+    <string name="download_failed">não foi possível obter o livro: %1$s</string>
+    <string name="library_error">não foi possível ler a drive: %1$s</string>
+    <string name="wrong_login">a drive recusou o início de sessão</string>
+    <string name="forget_library">esquecer a biblioteca</string>
+    <string name="forget_library_hint">remove a ligação, o utilizador e a lista de livros; a estante mantém-se</string>
+    <string name="export_credentials">exportar credenciais</string>
+    <string name="export_credentials_hint">um ficheiro para configurar outro aparelho — contém a palavra-passe</string>
+    <string name="import_credentials">importar credenciais</string>
+    <string name="credentials_imported">credenciais importadas</string>
+    <string name="credentials_imported_from">drive e utilizador retirados de outra app Reader\'s</string>
+    <string name="credentials_not_a_file">não é um ficheiro de credenciais Reader\'s</string>
+    <string name="credentials_nothing">este ficheiro não contém nada para %1$s</string>
+    <string name="credentials_unreadable">não é possível ler o ficheiro: %1$s</string>
+    <plurals name="n_books">
+        <item quantity="one">%d livro</item>
+        <item quantity="many">%d livros</item>
+        <item quantity="other">%d livros</item>
+    </plurals>
 </resources>

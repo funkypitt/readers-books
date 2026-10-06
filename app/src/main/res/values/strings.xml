@@ -39,4 +39,39 @@
     <string name="font_serif">serif</string>
     <string name="font_sans">sans-serif</string>
     <string name="font_mono">mono</string>
+    <!-- library: a drive's e-books by folder -->
+    <string name="library">library</string>
+    <string name="library_hint">Books kept on a drive, listed by folder; a book is downloaded only when you tap it. Paste the link of a public kDrive share, or give the WebDAV address of the drive with a username and an application password. The drive is then scanned for epub, mobi, azw and fb2 files.</string>
+    <string name="share_link">kDrive share link</string>
+    <string name="webdav_url">WebDAV address</string>
+    <string name="username">username</string>
+    <string name="password">password</string>
+    <string name="scan_again">scan the drive again</string>
+    <string name="scanning">scanning… %1$d folders, %2$d books</string>
+    <string name="scanned_at">scanned on %1$s</string>
+    <string name="no_books_found">no e-book found on the drive (epub, mobi, azw, fb2)</string>
+    <string name="root_folder">top of the drive</string>
+    <string name="order">order</string>
+    <string name="sort_name">by name</string>
+    <string name="sort_newest">newest first</string>
+    <string name="sort_oldest">oldest first</string>
+    <string name="downloading">downloading…</string>
+    <string name="on_shelf">on the shelf</string>
+    <string name="download_failed">the book could not be fetched: %1$s</string>
+    <string name="library_error">the drive could not be read: %1$s</string>
+    <string name="wrong_login">the drive refused the login</string>
+    <string name="forget_library">forget the library</string>
+    <string name="forget_library_hint">removes the link, the login and the list of books; the shelf is kept</string>
+    <string name="export_credentials">export credentials</string>
+    <string name="export_credentials_hint">a file to set up another device — it holds the password</string>
+    <string name="import_credentials">import credentials</string>
+    <string name="credentials_imported">credentials imported</string>
+    <string name="credentials_imported_from">drive and login taken from another Reader\'s app</string>
+    <string name="credentials_not_a_file">not a Reader\'s credentials file</string>
+    <string name="credentials_nothing">this file holds nothing for %1$s</string>
+    <string name="credentials_unreadable">the file cannot be read: %1$s</string>
+    <plurals name="n_books">
+        <item quantity="one">%d book</item>
+        <item quantity="other">%d books</item>
+    </plurals>
 </resources>

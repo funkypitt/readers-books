@@ -49,6 +49,8 @@ sealed class Screen {
     data class Book(val id: String) : Screen()
     data class Chapters(val id: String) : Screen()
     data object Settings : Screen()
+    data object Library : Screen()
+    data class Folder(val path: String) : Screen()
 }
 
 class Nav {
@@ -85,6 +87,7 @@ fun ShelfScreen(nav: Nav, app: App) {
     val typo = LocalTypo.current
     val colors = LocalColors.current
     val books by app.library.books.collectAsState()
+    val settings by app.prefs.settings.collectAsState()
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
     var bookMenu by remember { mutableStateOf<Entry?>(null) }
@@ -115,9 +118,10 @@ fun ShelfScreen(nav: Nav, app: App) {
             }
             Rule()
             TextRow(stringResource(R.string.open_book), size = typo.title) { pick() }
+            if (settings.libraryConfigured) TextRow(stringResource(R.string.library), size = typo.title) { nav.push(Screen.Library) }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }), onDismiss = { menu = false }, footer = listOf(
+        if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }, MenuItem(stringResource(R.string.library)) { nav.push(Screen.Library) }), onDismiss = { menu = false }, footer = listOf(
             MenuItem(if (colors.isDark) stringResource(R.string.theme_light) else stringResource(R.string.theme_dark)) { app.prefs.toggleTheme(colors.isDark) },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ))
@@ -136,6 +140,7 @@ fun SettingsScreen(nav: Nav, app: App) {
     val s by app.prefs.settings.collectAsState()
     val colors = LocalColors.current
     val current = if (s.readerSp > 0) s.readerSp else defaultReaderSp()
+    var prompt by remember { mutableStateOf<String?>(null) }
     BackHandler { nav.pop() }
     Page {
         Column(Modifier.fillMaxSize()) {
@@ -155,11 +160,18 @@ fun SettingsScreen(nav: Nav, app: App) {
                 TextRow(if (s.keepScreenOn) stringResource(R.string.on) else stringResource(R.string.off), secondary = stringResource(R.string.keep_screen_on)) { app.prefs.setKeepScreenOn(!s.keepScreenOn) }
                 TextRow(if (s.haptics) stringResource(R.string.on) else stringResource(R.string.off), secondary = stringResource(R.string.haptics)) { app.prefs.setHaptics(!s.haptics) }
                 Rule(Modifier.padding(vertical = 8.dp))
+                Small(stringResource(R.string.library_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 12)
+                LibraryAccountRows(s) { prompt = it }
+                CredentialsRows(app, s)
+                if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.prefs.setLibrary("", "", "", "") }
+                Rule(Modifier.padding(vertical = 8.dp))
                 TextRow(stringResource(R.string.app_name), secondary = stringResource(R.string.about)) { }
                 TextRow(stringResource(R.string.credits)) { }
                 TextRow("Literata", secondary = "The Literata Project Authors · SIL Open Font License 1.1") { }
+                TextRow("OkHttp", secondary = "Square, Inc. · Apache License 2.0") { }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
+        LibraryAccountPrompt(app, s, prompt) { prompt = null }
     }
 }

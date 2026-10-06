@@ -16,6 +16,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.freedomfighter.readersbooks.ui.BookChaptersScreen
 import com.freedomfighter.readersbooks.ui.BookScreen
+import com.freedomfighter.readersbooks.ui.FolderScreen
+import com.freedomfighter.readersbooks.ui.LibraryScreen
 import com.freedomfighter.readersbooks.ui.LocalColors
 import com.freedomfighter.readersbooks.ui.Nav
 import com.freedomfighter.readersbooks.ui.ReaderTheme
@@ -44,6 +46,8 @@ class MainActivity : ComponentActivity() {
                     is Screen.Book -> BookScreen(nav, app, s.id)
                     is Screen.Chapters -> BookChaptersScreen(nav, app, s.id)
                     Screen.Settings -> SettingsScreen(nav, app)
+                    Screen.Library -> LibraryScreen(nav, app)
+                    is Screen.Folder -> FolderScreen(nav, app, s.path)
                 }
             }
         }

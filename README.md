@@ -3,8 +3,8 @@
 # Reader's Books
 
 A shelf as a plain list; books as pages of text cut at whole lines, turned by a tap — made
-for e-ink. EPUB, MOBI, FB2, TXT; the place in each book is kept. No store, no account, no
-network permission. It extends the built-in reader of
+for e-ink. EPUB, MOBI, FB2, TXT; the place in each book is kept. No store, no account; the
+network is used only if you set up a library on your own drive. It extends the built-in reader of
 [Reader's Launcher](https://github.com/funkypitt/readers-launcher) into a shelf.
 
 ## Key points
@@ -22,6 +22,10 @@ network permission. It extends the built-in reader of
 * A magazine issue (an EPUB whose contents page carries a section, a title and an author per
   article, as the newspapers pipeline writes them) opens on its contents: sections, titles,
   authors and cover pictures. An article is a chapter; back returns to the contents.
+* Optional library: the e-books kept on a drive (a public kDrive share link, or any WebDAV
+  address with a username and an application password, kDrive included), listed by folder
+  and then by name or by date. Nothing is downloaded until you tap a book. The account can be
+  exported and imported as the Reader's credentials file shared by the other Reader's apps.
 * One home-screen widget for any launcher: the book being read and the position; tap carries
   on at the current page. The launcher's book tile shows the same.
 
