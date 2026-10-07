@@ -51,6 +51,7 @@ sealed class Screen {
     data object Settings : Screen()
     data object Library : Screen()
     data class Folder(val path: String) : Screen()
+    data object AllBooks : Screen()
 }
 
 class Nav {
@@ -75,7 +76,7 @@ val BOOK_MIME = arrayOf(
     "application/x-fictionbook+xml", "text/plain", "application/octet-stream", "*/*"
 )
 
-private fun whenLabel(millis: Long, yesterday: String): String {
+fun whenLabel(millis: Long, yesterday: String): String {
     if (millis == 0L) return ""
     val d = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()); val today = LocalDate.now()
     return when (d.toLocalDate()) { today -> d.format(DateTimeFormatter.ofPattern("HH:mm")); today.minusDays(1) -> yesterday; else -> d.format(DateTimeFormatter.ofPattern(if (d.year == today.year) "d MMM" else "d MMM yyyy")).lowercase() }

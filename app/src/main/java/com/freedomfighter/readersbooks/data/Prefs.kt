@@ -11,6 +11,8 @@ enum class TextSize { SMALL, MEDIUM, LARGE }
 enum class Align { LEFT, CENTER }
 /** Order of the books inside a library folder. */
 enum class LibrarySort { NAME, NEWEST, OLDEST }
+/** Order of the whole drive's books in one list: last change, name, author, last opened here. */
+enum class AllBooksSort { NEWEST, NAME, AUTHOR, OPENED }
 
 data class Settings(
     val theme: ThemeMode = ThemeMode.DARK,
@@ -28,7 +30,8 @@ data class Settings(
     val url: String = "",
     val username: String = "",
     val password: String = "",
-    val librarySort: LibrarySort = LibrarySort.NAME
+    val librarySort: LibrarySort = LibrarySort.NAME,
+    val allBooksSort: AllBooksSort = AllBooksSort.NEWEST
 ) {
     /** A share link alone, or an address with a login: either reaches the library. */
     val libraryConfigured: Boolean get() = share.isNotBlank() || (url.isNotBlank() && username.isNotBlank() && password.isNotEmpty())
@@ -57,7 +60,8 @@ class Prefs(context: Context) {
         url = sp.getString("library_url", "") ?: "",
         username = sp.getString("library_username", "") ?: "",
         password = Secret.decrypt(sp.getString("library_password", "") ?: ""),
-        librarySort = enumOr(sp.getString("library_sort", null), LibrarySort.NAME)
+        librarySort = enumOr(sp.getString("library_sort", null), LibrarySort.NAME),
+        allBooksSort = enumOr(sp.getString("all_books_sort", null), AllBooksSort.NEWEST)
     )
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =
         name?.let { runCatching { enumValueOf<E>(it) }.getOrNull() } ?: default
@@ -71,6 +75,7 @@ class Prefs(context: Context) {
     fun setBookSerif(v: Boolean) = sp.edit().putBoolean("book_serif", v).apply()
     fun setKeepScreenOn(v: Boolean) = sp.edit().putBoolean("keep_screen_on", v).apply()
     fun setLibrarySort(v: LibrarySort) = sp.edit().putString("library_sort", v.name).apply()
+    fun setAllBooksSort(v: AllBooksSort) = sp.edit().putString("all_books_sort", v.name).apply()
     /** The library account; the password is kept encrypted. Blank keys are kept as they are by the import, cleared here. */
     fun setLibrary(share: String, url: String, username: String, password: String) = sp.edit()
         .putString("library_share", share.trim())

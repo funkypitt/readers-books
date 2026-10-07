@@ -53,6 +53,10 @@
     <string name="sort_name">por nombre</string>
     <string name="sort_newest">los más recientes primero</string>
     <string name="sort_oldest">los más antiguos primero</string>
+    <string name="all_books">todos los libros</string>
+    <string name="sort_author">por autor</string>
+    <string name="sort_opened">los últimos abiertos primero</string>
+    <string name="opened_on">abierto %1$s</string>
     <string name="downloading">descargando…</string>
     <string name="on_shelf">en la estantería</string>
     <string name="download_failed">no se pudo obtener el libro: %1$s</string>

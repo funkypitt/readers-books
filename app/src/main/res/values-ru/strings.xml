@@ -53,6 +53,10 @@
     <string name="sort_name">по имени</string>
     <string name="sort_newest">сначала новые</string>
     <string name="sort_oldest">сначала старые</string>
+    <string name="all_books">все книги</string>
+    <string name="sort_author">по автору</string>
+    <string name="sort_opened">сначала недавно открытые</string>
+    <string name="opened_on">открыта %1$s</string>
     <string name="downloading">загрузка…</string>
     <string name="on_shelf">на полке</string>
     <string name="download_failed">не удалось получить книгу: %1$s</string>

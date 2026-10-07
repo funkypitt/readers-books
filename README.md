@@ -24,10 +24,11 @@ network is used only if you set up a library on your own drive. It extends the b
   authors and cover pictures. An article is a chapter; back returns to the contents.
 * Optional library: the e-books kept on a drive (a public kDrive share link, or any WebDAV
   address with a username and an application password, kDrive included), listed by folder
-  and then by name or by date. Nothing is downloaded until you tap a book. The scan keeps going
-  while the phone is locked (a quiet notification counts folders and books) and carries on
-  where it stopped if it is cut short. The account can be exported and imported as the
-  Reader's credentials file shared by the other Reader's apps.
+  and then by name or by date, or all in one list by date, name, author or last opened (the
+  author is what precedes " - " in the file name, else the folder's name). Nothing is downloaded
+  until you tap a book. The scan keeps going while the phone is locked (a quiet notification
+  counts folders and books) and carries on where it stopped if it is cut short. The account can
+  be exported and imported as the Reader's credentials file shared by the other Reader's apps.
 * One home-screen widget for any launcher: the book being read and the position; tap carries
   on at the current page. The launcher's book tile shows the same.
 

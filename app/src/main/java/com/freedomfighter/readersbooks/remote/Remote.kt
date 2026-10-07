@@ -44,6 +44,11 @@ data class RemoteBook(
     val extension: String get() = name.substringAfterLast('.', "").lowercase()
     val title: String get() = name.substringBeforeLast('.').replace('_', ' ')
     val folderName: String get() = folder.substringAfterLast('/')
+    /**
+     * The author as far as the drive tells it: what precedes " - " in the file name
+     * ("Author - Title.epub"), else the folder's name, where libraries file one author per folder.
+     */
+    val author: String get() = if (title.contains(" - ")) title.substringBefore(" - ").trim() else folderName
 }
 
 /** One folder's listing: the references of its sub-folders, and its books. */

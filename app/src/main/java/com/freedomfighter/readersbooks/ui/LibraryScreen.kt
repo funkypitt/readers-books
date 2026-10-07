@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
+import com.freedomfighter.readersbooks.data.AllBooksSort
 import com.freedomfighter.readersbooks.data.Credentials
 import com.freedomfighter.readersbooks.data.CredentialsShare
 import com.freedomfighter.readersbooks.data.LibrarySort
@@ -46,7 +47,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 // ---------------------------------------------------------------------------------------------
-// The library: a drive's e-books listed by folder, fetched one by one when tapped.
+// The library: a drive's e-books listed by folder or all at once, fetched one by one when tapped.
 // ---------------------------------------------------------------------------------------------
 
 @Composable
@@ -111,6 +112,7 @@ fun LibraryScreen(nav: Nav, app: App) {
                         TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.folders_unread, index.failed.size)) { scan(false) }
                     }
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
+                    if (index.books.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, index.books.size, index.books.size)) { nav.push(Screen.AllBooks) } }
                     items(folders, key = { it.path }) { f ->
                         TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = listOf(pluralStringResource(R.plurals.n_books, f.count, f.count)).joinToString()) { nav.push(Screen.Folder(f.path)) }
                     }
@@ -133,11 +135,6 @@ fun LibraryScreen(nav: Nav, app: App) {
 fun FolderScreen(nav: Nav, app: App, path: String) {
     val s by app.prefs.settings.collectAsState()
     val index by app.remote.index.collectAsState()
-    val shelf by app.library.books.collectAsState()
-    val scope = rememberCoroutineScope()
-    var menu by remember { mutableStateOf(false) }
-    var fetching by remember { mutableStateOf<String?>(null) }
-    var failed by remember { mutableStateOf<Throwable?>(null) }
     val books = remember(index, s.librarySort) {
         val b = app.remote.books(path)
         when (s.librarySort) {
@@ -146,7 +143,63 @@ fun FolderScreen(nav: Nav, app: App, path: String) {
             LibrarySort.OLDEST -> b.sortedWith(compareBy<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
         }
     }
+    BookList(nav, app, path.substringAfterLast('/').ifEmpty { stringResource(R.string.root_folder) }, books,
+        order = stringResource(when (s.librarySort) { LibrarySort.NAME -> R.string.sort_name; LibrarySort.NEWEST -> R.string.sort_newest; LibrarySort.OLDEST -> R.string.sort_oldest }),
+        orders = listOf(
+            MenuItem(stringResource(R.string.sort_name)) { app.prefs.setLibrarySort(LibrarySort.NAME) },
+            MenuItem(stringResource(R.string.sort_newest)) { app.prefs.setLibrarySort(LibrarySort.NEWEST) },
+            MenuItem(stringResource(R.string.sort_oldest)) { app.prefs.setLibrarySort(LibrarySort.OLDEST) }
+        ))
+}
+
+/**
+ * Every book of the drive in one list, the folders left out: by last change (newest first), by
+ * name, by author, or by when this app last opened them. The folder's name stays on the second line.
+ */
+@Composable
+fun AllBooksScreen(nav: Nav, app: App) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val shelf by app.library.books.collectAsState()
+    // when each book was last opened here, by its reference on the drive
+    val opened = remember(shelf) { shelf.filter { it.source != null }.associate { it.source!! to maxOf(it.opened, it.added) } }
+    val books = remember(index, opened, s.allBooksSort) {
+        val b = index.books
+        when (s.allBooksSort) {
+            AllBooksSort.NEWEST -> b.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
+            AllBooksSort.NAME -> b.sortedBy { it.name.lowercase() }
+            // books whose author is not known go last, by name
+            AllBooksSort.AUTHOR -> b.sortedWith(compareBy<RemoteBook>({ it.author.isEmpty() }, { it.author.lowercase() }, { it.title.lowercase() }))
+            AllBooksSort.OPENED -> b.sortedWith(compareByDescending<RemoteBook> { opened[it.ref] ?: 0L }.thenBy { it.name.lowercase() })
+        }
+    }
+    BookList(nav, app, stringResource(R.string.all_books), books, showFolder = true,
+        order = stringResource(when (s.allBooksSort) { AllBooksSort.NEWEST -> R.string.sort_newest; AllBooksSort.NAME -> R.string.sort_name; AllBooksSort.AUTHOR -> R.string.sort_author; AllBooksSort.OPENED -> R.string.sort_opened }),
+        orders = listOf(
+            MenuItem(stringResource(R.string.sort_newest)) { app.prefs.setAllBooksSort(AllBooksSort.NEWEST) },
+            MenuItem(stringResource(R.string.sort_name)) { app.prefs.setAllBooksSort(AllBooksSort.NAME) },
+            MenuItem(stringResource(R.string.sort_author)) { app.prefs.setAllBooksSort(AllBooksSort.AUTHOR) },
+            MenuItem(stringResource(R.string.sort_opened)) { app.prefs.setAllBooksSort(AllBooksSort.OPENED) }
+        ),
+        opened = if (s.allBooksSort == AllBooksSort.OPENED) opened else null)
+}
+
+/**
+ * A list of the drive's books under a title, with the current order named above it and the
+ * orders offered in the ⋯ menu. Tap fetches the book (once) and opens it. `opened` adds when
+ * this app last opened each book to its line.
+ */
+@Composable
+private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, showFolder: Boolean = false, opened: Map<String, Long>? = null) {
+    val s by app.prefs.settings.collectAsState()
+    val shelf by app.library.books.collectAsState()
+    val scope = rememberCoroutineScope()
+    var menu by remember { mutableStateOf(false) }
+    var fetching by remember { mutableStateOf<String?>(null) }
+    var failed by remember { mutableStateOf<Throwable?>(null) }
     val unsupported = stringResource(R.string.reader_unsupported)
+    val rootFolder = stringResource(R.string.root_folder)
+    val yesterday = stringResource(R.string.yesterday)
     fun open(b: RemoteBook) {
         app.library.bySource(b.ref)?.let { e -> nav.push(if (e.magazine) Screen.Chapters(e.id) else Screen.Book(e.id)); return }
         if (fetching != null) return
@@ -161,14 +214,16 @@ fun FolderScreen(nav: Nav, app: App, path: String) {
     BackHandler { nav.pop() }
     Page {
         Column(Modifier.fillMaxSize()) {
-            ScreenTitle(path.substringAfterLast('/').ifEmpty { stringResource(R.string.root_folder) }, onBack = { nav.pop() }, trailing = "⋯", onTrailing = { menu = true })
+            ScreenTitle(title, onBack = { nav.pop() }, trailing = "⋯", onTrailing = { menu = true })
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
-                item { Small(stringResource(when (s.librarySort) { LibrarySort.NAME -> R.string.sort_name; LibrarySort.NEWEST -> R.string.sort_newest; LibrarySort.OLDEST -> R.string.sort_oldest }), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
+                item { Small(order, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
                 failed?.let { e -> item { Small(if (e is Unauthorized) stringResource(R.string.wrong_login) else stringResource(R.string.download_failed, e.message ?: unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
                 items(books, key = { it.ref }) { b ->
                     val onShelf = shelf.any { it.source == b.ref }
+                    val openedLabel = opened?.get(b.ref)?.let { stringResource(R.string.opened_on, whenLabel(it, yesterday)) } ?: ""
                     val line = listOf(
                         if (fetching == b.ref) stringResource(R.string.downloading) else if (onShelf) stringResource(R.string.on_shelf) else "",
+                        openedLabel, if (showFolder) b.folderName.ifEmpty { rootFolder } else "",
                         dateLabel(b.modified), b.extension, sizeLabel(b.size)
                     ).filter { it.isNotEmpty() }.joinToString(" · ")
                     Column(Modifier.fillMaxWidth().noRippleClickable { open(b) }.padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
@@ -179,11 +234,7 @@ fun FolderScreen(nav: Nav, app: App, path: String) {
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(stringResource(R.string.order), listOf(
-            MenuItem(stringResource(R.string.sort_name)) { app.prefs.setLibrarySort(LibrarySort.NAME) },
-            MenuItem(stringResource(R.string.sort_newest)) { app.prefs.setLibrarySort(LibrarySort.NEWEST) },
-            MenuItem(stringResource(R.string.sort_oldest)) { app.prefs.setLibrarySort(LibrarySort.OLDEST) }
-        ), onDismiss = { menu = false })
+        if (menu) TextMenu(stringResource(R.string.order), orders, onDismiss = { menu = false })
     }
 }
 
