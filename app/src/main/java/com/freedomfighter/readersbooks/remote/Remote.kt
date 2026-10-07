@@ -1,12 +1,6 @@
 package com.freedomfighter.readersbooks.remote
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -25,6 +19,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.net.URI
 import java.net.URLDecoder
 import java.time.ZonedDateTime
@@ -51,41 +46,34 @@ data class RemoteBook(
     val folderName: String get() = folder.substringAfterLast('/')
 }
 
-/** Where a scan is: folders seen so far, books found so far. */
-data class Progress(val folders: Int, val books: Int)
+/** One folder's listing: the references of its sub-folders, and its books. */
+class Listing(val folders: List<String>, val books: List<RemoteBook>)
 
-/** Something that lists and fetches books: a WebDAV server or a kDrive share link. */
+/**
+ * Something that lists and fetches books: a WebDAV server or a kDrive share link. A folder is
+ * named by an opaque reference string, so a scan can be stopped and carried on later.
+ */
 interface Remote {
-    /** Walk the whole tree and return every e-book, folder by folder. */
-    suspend fun scan(onProgress: (Progress) -> Unit): List<RemoteBook>
+    /** Where a scan starts. May need the network. */
+    suspend fun roots(): List<String>
+    /** The whole tree in one request when the server allows it; null otherwise. */
+    suspend fun listAll(): List<RemoteBook>? = null
+    suspend fun list(folder: String): Listing
     suspend fun download(book: RemoteBook, dest: File)
 }
+
+class Unauthorized : IOException("wrong login")
 
 private val http: OkHttpClient by lazy {
     OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS).followRedirects(true).build()
 }
 
 /** Hidden folders and the server's own bins are never worth walking. */
-private fun skipFolder(name: String) = name.startsWith(".") || name.equals("trash", true) || name.equals("lost+found", true)
+internal fun skipFolder(name: String) = name.startsWith(".") || name.equals("trash", true) || name.equals("lost+found", true)
 
-private const val MAX_FOLDERS = 5000
-private const val PARALLEL = 4
-
-/** How many folders are walked at once, in both clients. */
-private suspend fun <T> walk(root: T, list: suspend (T) -> Pair<List<T>, List<RemoteBook>>, onProgress: (Progress) -> Unit): List<RemoteBook> = coroutineScope {
-    val found = ArrayList<RemoteBook>()
-    var level = listOf(root)
-    var folders = 0
-    val gate = Semaphore(PARALLEL)
-    while (level.isNotEmpty() && folders < MAX_FOLDERS) {
-        val results = level.map { dir -> async(Dispatchers.IO) { gate.withPermit { ensureActive(); list(dir) } } }.awaitAll()
-        val next = ArrayList<T>()
-        for ((dirs, books) in results) { next += dirs; found += books }
-        folders += level.size
-        onProgress(Progress(folders, found.size))
-        level = next
-    }
-    found
+private fun check(code: Int) {
+    if (code == 401 || code == 403) throw Unauthorized()
+    if (code != 207 && code !in 200..299) throw IOException("HTTP $code")
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -98,18 +86,21 @@ class WebDav(url: String, private val username: String, private val password: St
 
     private class Item(val href: String, val isDir: Boolean, val size: Long, val modified: Long)
 
-    override suspend fun scan(onProgress: (Progress) -> Unit): List<RemoteBook> {
-        // One request for the whole tree when the server allows it (many refuse or quietly cut at one level).
-        val deep = runCatching { propfind(base, "infinity") }.getOrNull()
-        if (deep != null && deep.any { it.isDir && relative(it.href).count { c -> c == '/' } >= 1 }) {
-            onProgress(Progress(deep.count { it.isDir } + 1, 0))
-            return deep.filter { !it.isDir }.mapNotNull { toBook(it) }.also { onProgress(Progress(deep.count { d -> d.isDir } + 1, it.size)) }
-        }
-        return walk(base, { dir ->
-            val items = propfind(dir, "1")
-            val dirs = items.filter { it.isDir && !skipFolder(it.href.trimEnd('/').substringAfterLast('/').decoded()) }.map { it.href }
-            dirs to items.filter { !it.isDir }.mapNotNull { toBook(it) }
-        }, onProgress)
+    override suspend fun roots() = listOf(base)
+
+    /** One request for the whole tree. Many servers refuse it or quietly answer for one level only. */
+    override suspend fun listAll(): List<RemoteBook>? = withContext(Dispatchers.IO) {
+        val deep = runCatching { propfind(base, "infinity", http.newBuilder().readTimeout(10, TimeUnit.MINUTES).build()) }.getOrNull() ?: return@withContext null
+        if (deep.none { it.isDir && relative(it.href).count { c -> c == '/' } >= 1 }) return@withContext null
+        deep.filter { !it.isDir }.mapNotNull { toBook(it) }
+    }
+
+    override suspend fun list(folder: String): Listing = withContext(Dispatchers.IO) {
+        val items = propfind(folder, "1", http)
+        Listing(
+            items.filter { it.isDir && !skipFolder(it.href.trimEnd('/').substringAfterLast('/').decoded()) }.map { it.href },
+            items.filter { !it.isDir }.mapNotNull { toBook(it) }
+        )
     }
 
     private fun toBook(i: Item): RemoteBook? {
@@ -130,22 +121,22 @@ class WebDav(url: String, private val username: String, private val password: St
 
     private fun String.decoded() = runCatching { URLDecoder.decode(replace("+", "%2B"), "UTF-8") }.getOrDefault(this)
 
-    private fun propfind(url: String, depth: String): List<Item> {
+    private fun propfind(url: String, depth: String, client: OkHttpClient): List<Item> {
         val body = """<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:propfind>"""
         val req = Request.Builder().url(url).method("PROPFIND", body.toRequestBody("application/xml".toMediaType()))
             .header("Authorization", auth).header("Depth", depth).build()
-        http.newCall(req).execute().use { r ->
-            if (r.code == 401 || r.code == 403) throw Unauthorized()
-            if (r.code != 207 && !r.isSuccessful) throw IOException("HTTP ${r.code}")
-            val xml = r.body?.string() ?: throw IOException("empty answer")
-            return parse(xml, url)
+        client.newCall(req).execute().use { r ->
+            check(r.code)
+            val stream = r.body?.byteStream() ?: throw IOException("empty answer")
+            return parse(stream, url)
         }
     }
 
-    private fun parse(xml: String, requested: String): List<Item> {
+    /** Streams the multistatus answer: a whole drive may be tens of megabytes. */
+    private fun parse(stream: InputStream, requested: String): List<Item> {
         val out = ArrayList<Item>()
         val p = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()
-        p.setInput(xml.reader())
+        p.setInput(stream, null)
         var href: String? = null; var dir = false; var size = 0L; var modified = 0L; var inResource = false
         var ev = p.eventType
         while (ev != XmlPullParser.END_DOCUMENT) {
@@ -177,24 +168,21 @@ class WebDav(url: String, private val username: String, private val password: St
         withContext(Dispatchers.IO) {
             val req = Request.Builder().url(book.ref).get().header("Authorization", auth).build()
             http.newCall(req).execute().use { r ->
-                if (r.code == 401 || r.code == 403) throw Unauthorized()
-                if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
+                check(r.code)
                 r.body?.byteStream()?.use { input -> dest.outputStream().use { input.copyTo(it) } } ?: throw IOException("empty answer")
             }
         }
     }
 }
 
-class Unauthorized : IOException("wrong login")
-
 // ---------------------------------------------------------------------------------------------
 // A public kDrive share link (https://kdrive.infomaniak.com/app/share/<drive>/<uuid>): no login.
+// A folder reference is "<id>|<path>".
 // ---------------------------------------------------------------------------------------------
 
 class KDriveShare(link: String) : Remote {
     private val driveId: String
     private val uuid: String
-    private var rootId: Long = -1
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
@@ -204,48 +192,42 @@ class KDriveShare(link: String) : Remote {
 
     private fun get(url: String): String {
         http.newCall(Request.Builder().url(url).get().build()).execute().use { r ->
-            if (r.code == 401 || r.code == 403) throw Unauthorized()
-            if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
+            check(r.code)
             return r.body?.string() ?: throw IOException("empty answer")
         }
     }
 
-    private fun root(): Long {
-        if (rootId >= 0) return rootId
+    override suspend fun roots(): List<String> = withContext(Dispatchers.IO) {
         val data = json.parseToJsonElement(get("$BASE/2/app/$driveId/share/$uuid/init")).jsonObject["data"]?.jsonObject ?: throw IOException("no data")
-        rootId = data["file_id"]?.jsonPrimitive?.longOrNull ?: throw IOException("no file id")
-        return rootId
+        val id = data["file_id"]?.jsonPrimitive?.longOrNull ?: throw IOException("no file id")
+        listOf("$id|")
     }
 
-    private class Dir(val id: Long, val path: String)
-
-    override suspend fun scan(onProgress: (Progress) -> Unit): List<RemoteBook> {
-        val top = Dir(withContext(Dispatchers.IO) { root() }, "")
-        return walk(top, { dir ->
-            val dirs = ArrayList<Dir>(); val books = ArrayList<RemoteBook>()
-            var cursor: String? = null
-            do {
-                val url = "$BASE/3/app/$driveId/share/$uuid/files/${dir.id}/files?limit=200" + (cursor?.let { "&cursor=$it" } ?: "")
-                val rootObj = json.parseToJsonElement(get(url)).jsonObject
-                for (e in rootObj["data"]?.jsonArray ?: break) {
-                    val o = e.jsonObject
-                    val name = o["name"]?.jsonPrimitive?.contentOrNull ?: continue
-                    val id = o["id"]?.jsonPrimitive?.longOrNull ?: continue
-                    if (o["type"]?.jsonPrimitive?.contentOrNull == "dir") { if (!skipFolder(name)) dirs += Dir(id, if (dir.path.isEmpty()) name else dir.path + "/" + name) }
-                    else if (name.substringAfterLast('.', "").lowercase() in BOOK_EXTENSIONS)
-                        books += RemoteBook(name, dir.path, id.toString(), o["size"]?.jsonPrimitive?.longOrNull ?: 0L, (o["last_modified_at"]?.jsonPrimitive?.longOrNull ?: 0L) * 1000)
-                }
-                cursor = if (rootObj["has_more"]?.jsonPrimitive?.booleanOrNull == true) rootObj["cursor"]?.jsonPrimitive?.contentOrNull else null
-            } while (cursor != null)
-            dirs to books
-        }, onProgress)
+    override suspend fun list(folder: String): Listing = withContext(Dispatchers.IO) {
+        val id = folder.substringBefore('|'); val path = folder.substringAfter('|')
+        val dirs = ArrayList<String>(); val books = ArrayList<RemoteBook>()
+        var cursor: String? = null
+        do {
+            val url = "$BASE/3/app/$driveId/share/$uuid/files/$id/files?limit=200" + (cursor?.let { "&cursor=$it" } ?: "")
+            val rootObj = json.parseToJsonElement(get(url)).jsonObject
+            for (e in rootObj["data"]?.jsonArray ?: break) {
+                val o = e.jsonObject
+                val name = o["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                val fid = o["id"]?.jsonPrimitive?.longOrNull ?: continue
+                if (o["type"]?.jsonPrimitive?.contentOrNull == "dir") { if (!skipFolder(name)) dirs += "$fid|" + (if (path.isEmpty()) name else "$path/$name") }
+                else if (name.substringAfterLast('.', "").lowercase() in BOOK_EXTENSIONS)
+                    books += RemoteBook(name, path, fid.toString(), o["size"]?.jsonPrimitive?.longOrNull ?: 0L, (o["last_modified_at"]?.jsonPrimitive?.longOrNull ?: 0L) * 1000)
+            }
+            cursor = if (rootObj["has_more"]?.jsonPrimitive?.booleanOrNull == true) rootObj["cursor"]?.jsonPrimitive?.contentOrNull else null
+        } while (cursor != null)
+        Listing(dirs, books)
     }
 
     override suspend fun download(book: RemoteBook, dest: File) {
         withContext(Dispatchers.IO) {
             val req = Request.Builder().url("$BASE/2/app/$driveId/share/$uuid/files/${book.ref}/download").get().build()
             http.newCall(req).execute().use { r ->
-                if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
+                check(r.code)
                 r.body?.byteStream()?.use { input -> dest.outputStream().use { input.copyTo(it) } } ?: throw IOException("empty answer")
             }
         }

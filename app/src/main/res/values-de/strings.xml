@@ -68,6 +68,12 @@
     <string name="credentials_not_a_file">keine Reader\'s-Zugangsdatendatei</string>
     <string name="credentials_nothing">diese Datei enthält nichts für %1$s</string>
     <string name="credentials_unreadable">die Datei ist nicht lesbar: %1$s</string>
+    <string name="continue_scan">Suche fortsetzen</string>
+    <string name="scan_interrupted">die Suche ist nach %1$d Ordnern stehen geblieben · bisher %2$d Bücher</string>
+    <string name="folders_unread">%1$d Ordner konnten nicht gelesen werden</string>
+    <string name="stop_scan">Suche anhalten</string>
+    <string name="notif_channel">Bibliothekssuche</string>
+    <string name="notif_scanning">Drive wird durchsucht</string>
     <plurals name="n_books">
         <item quantity="one">%d Buch</item>
         <item quantity="other">%d Bücher</item>

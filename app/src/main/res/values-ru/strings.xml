@@ -68,6 +68,12 @@
     <string name="credentials_not_a_file">это не файл учётных данных Reader\'s</string>
     <string name="credentials_nothing">в этом файле нет ничего для %1$s</string>
     <string name="credentials_unreadable">файл не читается: %1$s</string>
+    <string name="continue_scan">продолжить просмотр</string>
+    <string name="scan_interrupted">просмотр остановился после %1$d папок · пока %2$d книг</string>
+    <string name="folders_unread">не удалось прочитать папок: %1$d</string>
+    <string name="stop_scan">остановить просмотр</string>
+    <string name="notif_channel">просмотр библиотеки</string>
+    <string name="notif_scanning">просмотр диска</string>
     <plurals name="n_books">
         <item quantity="one">%d книга</item>
         <item quantity="few">%d книги</item>

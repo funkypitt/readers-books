@@ -68,6 +68,12 @@
     <string name="credentials_not_a_file">ce n\'est pas un fichier d\'identifiants Reader\'s</string>
     <string name="credentials_nothing">ce fichier ne contient rien pour %1$s</string>
     <string name="credentials_unreadable">le fichier est illisible : %1$s</string>
+    <string name="continue_scan">poursuivre le parcours</string>
+    <string name="scan_interrupted">le parcours s\'est arrêté après %1$d dossiers · %2$d livres jusqu\'ici</string>
+    <string name="folders_unread">%1$d dossiers n\'ont pas pu être lus</string>
+    <string name="stop_scan">arrêter le parcours</string>
+    <string name="notif_channel">parcours de la bibliothèque</string>
+    <string name="notif_scanning">parcours du drive</string>
     <plurals name="n_books">
         <item quantity="one">%d livre</item>
         <item quantity="many">%d livres</item>

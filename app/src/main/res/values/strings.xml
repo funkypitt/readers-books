@@ -70,6 +70,12 @@
     <string name="credentials_not_a_file">not a Reader\'s credentials file</string>
     <string name="credentials_nothing">this file holds nothing for %1$s</string>
     <string name="credentials_unreadable">the file cannot be read: %1$s</string>
+    <string name="continue_scan">continue the scan</string>
+    <string name="scan_interrupted">the scan stopped after %1$d folders · %2$d books so far</string>
+    <string name="folders_unread">%1$d folders could not be read</string>
+    <string name="stop_scan">stop the scan</string>
+    <string name="notif_channel">library scan</string>
+    <string name="notif_scanning">scanning the drive</string>
     <plurals name="n_books">
         <item quantity="one">%d book</item>
         <item quantity="other">%d books</item>

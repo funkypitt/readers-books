@@ -73,10 +73,21 @@ fun LibraryScreen(nav: Nav, app: App) {
     val error by app.remote.error.collectAsState()
     var menu by remember { mutableStateOf(false) }
     var prompt by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    // the scan's notification (Android 13+); refused, the scan still runs, only unseen
+    var pendingScan by remember { mutableStateOf<Boolean?>(null) }
+    val askNotif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { pendingScan?.let { app.remote.requestScan(s, it) }; pendingScan = null }
+    fun scan(fresh: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            pendingScan = fresh; askNotif.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else app.remote.requestScan(s, fresh)
+    }
     BackHandler { nav.pop() }
-    // a drive just set up, or set up differently, is walked at once
+    // a drive just set up, or set up differently, is walked at once; a walk cut short carries on
     LaunchedEffect(s.share, s.url, s.username, s.password) {
-        if (s.libraryConfigured && !app.remote.matches(s) && progress == null) app.remote.scan(s)
+        if (!s.libraryConfigured || progress != null) return@LaunchedEffect
+        if (!app.remote.matches(s)) scan(true)
+        else if (!index.complete && error == null) scan(false)
     }
     Page {
         Column(Modifier.fillMaxSize()) {
@@ -93,17 +104,24 @@ fun LibraryScreen(nav: Nav, app: App) {
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
                     progress?.let { p -> item { Small(stringResource(R.string.scanning, p.folders, p.books), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 2) } }
                     error?.let { e -> item { Small(errorText(e), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
-                    if (folders.isEmpty() && progress == null && error == null && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
+                    if (progress == null && !index.complete && index.scannedAt > 0L) item {
+                        TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.scan_interrupted, index.folders, index.books.size)) { scan(false) }
+                    }
+                    if (progress == null && index.complete && index.failed.isNotEmpty()) item {
+                        TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.folders_unread, index.failed.size)) { scan(false) }
+                    }
+                    if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                     items(folders, key = { it.path }) { f ->
                         TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = listOf(pluralStringResource(R.plurals.n_books, f.count, f.count)).joinToString()) { nav.push(Screen.Folder(f.path)) }
                     }
-                    if (index.scannedAt > 0L && progress == null) item { Small(stringResource(R.string.scanned_at, dateLabel(index.scannedAt)), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 1) }
+                    if (index.scannedAt > 0L && progress == null && index.complete) item { Small(stringResource(R.string.scanned_at, dateLabel(index.scannedAt)), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 1) }
                 }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(null, listOf(
-            MenuItem(stringResource(R.string.scan_again)) { app.remote.scan(s) },
+        if (menu) TextMenu(null, listOfNotNull(
+            if (progress == null && (!index.complete || index.failed.isNotEmpty())) MenuItem(stringResource(R.string.continue_scan)) { scan(false) } else null,
+            if (progress == null) MenuItem(stringResource(R.string.scan_again)) { scan(true) } else MenuItem(stringResource(R.string.stop_scan)) { app.remote.cancel() },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ), onDismiss = { menu = false })
         LibraryAccountPrompt(app, s, prompt) { prompt = null }

@@ -68,6 +68,12 @@
     <string name="credentials_not_a_file">no es un archivo de credenciales Reader\'s</string>
     <string name="credentials_nothing">este archivo no contiene nada para %1$s</string>
     <string name="credentials_unreadable">no se puede leer el archivo: %1$s</string>
+    <string name="continue_scan">continuar el recorrido</string>
+    <string name="scan_interrupted">el recorrido se detuvo tras %1$d carpetas · %2$d libros hasta ahora</string>
+    <string name="folders_unread">%1$d carpetas no se pudieron leer</string>
+    <string name="stop_scan">detener el recorrido</string>
+    <string name="notif_channel">recorrido de la biblioteca</string>
+    <string name="notif_scanning">recorriendo el drive</string>
     <plurals name="n_books">
         <item quantity="one">%d libro</item>
         <item quantity="many">%d libros</item>
