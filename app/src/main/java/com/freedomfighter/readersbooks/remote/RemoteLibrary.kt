@@ -159,7 +159,10 @@ class RemoteLibrary(private val context: Context) {
                     lock.withLock {
                         inFlight -= f
                         r.onSuccess { queue += it.folders; books += it.books; folders++ }
-                        r.onFailure { e -> if (e is Unauthorized) fatal = e else failed += f }
+                        // A refused login puts the folder back on the list: once the login is put
+                        // right the scan carries on from it, instead of finding nothing left to do
+                        // and calling the drive empty.
+                        r.onFailure { e -> if (e is Unauthorized) { fatal = e; queue.addFirst(f) } else failed += f }
                         dirty = true
                         _progress.value = Progress(folders, books.size, failed.size)
                     }
@@ -199,6 +202,9 @@ class RemoteLibrary(private val context: Context) {
     }
 
     fun cancel() { job?.cancel(); _progress.value = null }
+
+    /** The account was just changed: what the drive answered to the old one no longer stands. */
+    fun accountChanged() { _error.value = null }
 
     fun forget() { cancel(); _index.value = Index(); file.delete() }
 

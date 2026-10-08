@@ -264,6 +264,9 @@ fun LibraryAccountPrompt(app: App, s: Settings, field: String?, onClose: () -> U
             "username" -> app.prefs.setLibrary(s.share, s.url, v, s.password)
             else -> app.prefs.setLibrary(s.share, s.url, s.username, v)
         }
+        // A refused login stays on the screen until the account changes: with a new one the
+        // scan is free to carry on by itself.
+        app.remote.accountChanged()
         onClose()
     }, onCancel = onClose)
 }
@@ -285,6 +288,7 @@ fun CredentialsRows(app: App, s: Settings) {
             // a file that names a drive replaces the whole account: a link and an address never both apply
             if (a.share != null) app.prefs.setLibrary(a.share, "", "", "")
             else app.prefs.setLibrary("", a.url ?: s.url, a.username ?: s.username, a.password ?: s.password)
+            app.remote.accountChanged()
             if (got.fromFallback) importedFrom else imported
         } catch (e: Credentials.NotCredentials) { notCredentials
         } catch (e: Credentials.NothingForUs) { nothingForUs
