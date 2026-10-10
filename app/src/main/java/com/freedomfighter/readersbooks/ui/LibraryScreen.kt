@@ -89,6 +89,7 @@ fun LibraryScreen(nav: Nav, app: App) {
         if (!s.libraryConfigured || progress != null) return@LaunchedEffect
         if (!app.remote.matches(s)) scan(true)
         else if (!index.complete && error == null) scan(false)
+        else app.remote.refreshFolder(s)
     }
     Page {
         Column(Modifier.fillMaxSize()) {

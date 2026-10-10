@@ -42,6 +42,11 @@ network is used only if you set up a library on your own drive. It extends the b
   quiet notification counts folders and books) and carries on where it stopped if it is cut
   short. The account can be exported and imported as the Reader's credentials file shared by
   the other Reader's apps.
+* The transcripts made in [Reader's Podcasts](https://github.com/funkypitt/readers-podcasts)
+  arrive by themselves: it sends each one, as a small book, to a `transcriptions` folder at the
+  top of the library (a folder per channel), and that folder is looked at again every time the
+  library is opened — no scan to ask for. They are books like the others: read, highlighted,
+  commented, with their note in Reader's Notes.
 * One home-screen widget for any launcher: the book being read and the position; tap carries
   on at the current page. The launcher's book tile shows the same.
 

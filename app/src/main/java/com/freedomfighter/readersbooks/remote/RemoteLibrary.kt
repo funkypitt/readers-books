@@ -45,6 +45,8 @@ data class Progress(val folders: Int, val books: Int, val failed: Int = 0)
 /** One folder of the drive that holds books. */
 data class Folder(val path: String, val count: Int) { val name: String get() = path.substringAfterLast('/') }
 
+/** Where Reader's Podcasts puts what was said in an episode, a small book each. */
+const val TRANSCRIPTS_FOLDER = "transcriptions"
 private const val MAX_FOLDERS = 20000
 private const val PARALLEL = 3
 private const val ATTEMPTS = 3
@@ -195,6 +197,41 @@ class RemoteLibrary(private val context: Context) {
     private suspend fun save(idx: Index) {
         _index.value = idx
         withContext(Dispatchers.IO) { runCatching { file.writeText(json.encodeToString(Index.serializer(), idx)) } }
+    }
+
+    @Volatile private var refreshing = false
+
+    /**
+     * One folder of the drive looked at again, without walking the rest: the one Reader's Podcasts
+     * sends its transcripts to, so that a transcript made this morning is in the library when it is
+     * opened, with no scan to ask for. In the background; what cannot be read leaves things as they are.
+     */
+    fun refreshFolder(s: Settings, name: String = TRANSCRIPTS_FOLDER) {
+        val remote = remote(s) ?: return
+        if (scanning || refreshing || !matches(s) || !_index.value.complete) return
+        refreshing = true
+        val source = _index.value.source
+        scope.launch {
+            try {
+                val top = remote.roots().first() + java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20") + "/"
+                val found = ArrayList<RemoteBook>()
+                val queue = ArrayDeque(listOf(top))
+                var gone = false
+                while (queue.isNotEmpty() && found.size < MAX_FOLDERS) {
+                    val folder = queue.removeFirst()
+                    val listing = try { remote.list(folder) } catch (e: IOException) {
+                        if (folder == top && e.message == "HTTP 404") { gone = true; null } else return@launch
+                    } ?: break
+                    queue += listing.folders; found += listing.books
+                }
+                if (scanning || _index.value.source != source) return@launch
+                val idx = _index.value
+                val merged = idx.books.filter { it.folder != name && !it.folder.startsWith("$name/") } + (if (gone) emptyList() else found)
+                if (merged.map { it.ref }.sorted() != idx.books.map { it.ref }.sorted()) save(idx.copy(books = merged))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Throwable) { // what was known stays
+            } finally { refreshing = false }
+        }
     }
 
     fun cancel() { job?.cancel(); _progress.value = null }
