@@ -39,8 +39,7 @@
     <string name="font_mono">chasse fixe</string>
     <!-- library: a drive's e-books by folder -->
     <string name="library">bibliothèque</string>
-    <string name="library_hint">Des livres gardés sur un drive, listés par dossier ; un livre n\'est téléchargé que lorsqu\'on le touche. Collez le lien d\'un partage kDrive public, ou donnez l\'adresse WebDAV du drive avec un nom d\'utilisateur et un mot de passe d\'application. Le drive est alors parcouru à la recherche de fichiers epub, mobi, azw et fb2.</string>
-    <string name="share_link">lien de partage kDrive</string>
+    <string name="library_hint">Des livres gardés sur un drive, listés par dossier ; un livre n\'est téléchargé que lorsqu\'on le touche. Donnez l\'adresse WebDAV du drive avec un nom d\'utilisateur et un mot de passe d\'application (kDrive, Nextcloud, tout serveur WebDAV). Le drive est alors parcouru à la recherche de fichiers epub, mobi, azw et fb2. Les surlignages et la page où vous êtes sont écrits à côté de chaque livre : le compte doit pouvoir y écrire.</string>
     <string name="webdav_url">adresse WebDAV</string>
     <string name="username">nom d\'utilisateur</string>
     <string name="password">mot de passe</string>
@@ -83,4 +82,16 @@
         <item quantity="many">%d livres</item>
         <item quantity="other">%d livres</item>
     </plurals>
+    <!-- highlights and comments, in the books of the library -->
+    <string name="highlight">surligner</string>
+    <string name="comment">commenter</string>
+    <string name="add_comment">ajouter un commentaire</string>
+    <string name="edit_comment">modifier le commentaire</string>
+    <string name="remove_highlight">retirer le surlignage</string>
+    <string name="export_highlights">exporter les surlignages</string>
+    <string name="notes_folder">dossier de Reader\'s Notes</string>
+    <string name="notes_username">nom d\'utilisateur pour les notes</string>
+    <string name="notes_password">mot de passe pour les notes</string>
+    <string name="same_as_library">comme la bibliothèque</string>
+    <string name="highlights_hint">Surlignages : dans un livre de la bibliothèque, appuyez longuement sur un mot, puis glissez sur le passage pour le surligner, avec un commentaire si vous le voulez ; un toucher sur un surlignage montre son commentaire. Ils sont gardés à côté du livre sur le drive, avec la page où vous êtes, et le suivent sur vos autres appareils. Le menu du livre les exporte. Avec l\'adresse WebDAV du dossier de Reader\'s Notes donnée ci-dessous, une note par livre reprend ses surlignages dans Reader\'s Notes.</string>
 </resources>

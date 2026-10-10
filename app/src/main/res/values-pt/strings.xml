@@ -39,8 +39,7 @@
     <string name="font_mono">monoespaçada</string>
     <!-- library: a drive's e-books by folder -->
     <string name="library">biblioteca</string>
-    <string name="library_hint">Livros guardados numa drive, listados por pasta; um livro só é descarregado quando lhe toca. Cole a ligação de uma partilha pública kDrive, ou indique o endereço WebDAV da drive com um nome de utilizador e uma palavra-passe de aplicação. A drive é então percorrida à procura de ficheiros epub, mobi, azw e fb2.</string>
-    <string name="share_link">ligação de partilha kDrive</string>
+    <string name="library_hint">Livros guardados numa drive, listados por pasta; um livro só é descarregado quando lhe toca. Indique o endereço WebDAV da drive com um nome de utilizador e uma palavra-passe de aplicação (kDrive, Nextcloud, qualquer servidor WebDAV). A drive é então percorrida à procura de ficheiros epub, mobi, azw e fb2. Os destaques e a página em que está são escritos ao lado de cada livro: a conta tem de poder escrever aí.</string>
     <string name="webdav_url">endereço WebDAV</string>
     <string name="username">nome de utilizador</string>
     <string name="password">palavra-passe</string>
@@ -83,4 +82,16 @@
         <item quantity="many">%d livros</item>
         <item quantity="other">%d livros</item>
     </plurals>
+    <!-- highlights and comments, in the books of the library -->
+    <string name="highlight">destacar</string>
+    <string name="comment">comentar</string>
+    <string name="add_comment">adicionar um comentário</string>
+    <string name="edit_comment">editar o comentário</string>
+    <string name="remove_highlight">retirar o destaque</string>
+    <string name="export_highlights">exportar os destaques</string>
+    <string name="notes_folder">pasta do Reader\'s Notes</string>
+    <string name="notes_username">utilizador para as notas</string>
+    <string name="notes_password">palavra-passe para as notas</string>
+    <string name="same_as_library">como a biblioteca</string>
+    <string name="highlights_hint">Destaques: num livro da biblioteca, mantenha uma palavra premida e deslize sobre a passagem para a destacar, com um comentário se quiser; um toque num destaque mostra o seu comentário. Ficam ao lado do livro na drive, com a página em que está, e acompanham-no nos seus outros aparelhos. O menu do livro exporta-os. Com o endereço WebDAV da pasta do Reader\'s Notes indicado abaixo, uma nota por livro reúne os seus destaques no Reader\'s Notes.</string>
 </resources>

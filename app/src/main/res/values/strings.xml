@@ -41,8 +41,7 @@
     <string name="font_mono">mono</string>
     <!-- library: a drive's e-books by folder -->
     <string name="library">library</string>
-    <string name="library_hint">Books kept on a drive, listed by folder; a book is downloaded only when you tap it. Paste the link of a public kDrive share, or give the WebDAV address of the drive with a username and an application password. The drive is then scanned for epub, mobi, azw and fb2 files.</string>
-    <string name="share_link">kDrive share link</string>
+    <string name="library_hint">Books kept on a drive, listed by folder; a book is downloaded only when you tap it. Give the WebDAV address of the drive with a username and an application password (kDrive, Nextcloud, any WebDAV server). The drive is then scanned for epub, mobi, azw and fb2 files. Highlights and the page you are at are written next to each book, so the login must be allowed to write there.</string>
     <string name="webdav_url">WebDAV address</string>
     <string name="username">username</string>
     <string name="password">password</string>
@@ -84,4 +83,16 @@
         <item quantity="one">%d book</item>
         <item quantity="other">%d books</item>
     </plurals>
+    <!-- highlights and comments, in the books of the library -->
+    <string name="highlight">highlight</string>
+    <string name="comment">comment</string>
+    <string name="add_comment">add a comment</string>
+    <string name="edit_comment">edit the comment</string>
+    <string name="remove_highlight">remove the highlight</string>
+    <string name="export_highlights">export the highlights</string>
+    <string name="notes_folder">Reader\'s Notes folder</string>
+    <string name="notes_username">username for the notes</string>
+    <string name="notes_password">password for the notes</string>
+    <string name="same_as_library">same as the library</string>
+    <string name="highlights_hint">Highlights: in a book from the library, press and hold a word, then slide over the passage to highlight it, with a comment if you like; a tap on a highlight shows its comment. They are kept next to the book on the drive, with the page you are at, and follow it to your other devices. The book\'s menu exports them. With the WebDAV address of the Reader\'s Notes folder given below, a note per book lists its highlights in Reader\'s Notes.</string>
 </resources>

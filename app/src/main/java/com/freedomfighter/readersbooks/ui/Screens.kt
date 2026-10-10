@@ -164,7 +164,10 @@ fun SettingsScreen(nav: Nav, app: App) {
                 Small(stringResource(R.string.library_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 12)
                 LibraryAccountRows(s) { prompt = it }
                 CredentialsRows(app, s)
-                if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.prefs.setLibrary("", "", "", "") }
+                if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.prefs.setLibrary("", "", "") }
+                Rule(Modifier.padding(vertical = 8.dp))
+                Small(stringResource(R.string.highlights_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 16)
+                NotesAccountRows(s) { prompt = it }
                 Rule(Modifier.padding(vertical = 8.dp))
                 TextRow(stringResource(R.string.app_name), secondary = stringResource(R.string.about)) { }
                 TextRow(stringResource(R.string.credits)) { }

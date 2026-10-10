@@ -39,8 +39,7 @@
     <string name="font_mono">monoespaciada</string>
     <!-- library: a drive's e-books by folder -->
     <string name="library">biblioteca</string>
-    <string name="library_hint">Libros guardados en un drive, listados por carpeta; un libro solo se descarga cuando lo tocas. Pega el enlace de un recurso compartido público de kDrive, o indica la dirección WebDAV del drive con un nombre de usuario y una contraseña de aplicación. Entonces se recorre el drive buscando archivos epub, mobi, azw y fb2.</string>
-    <string name="share_link">enlace compartido de kDrive</string>
+    <string name="library_hint">Libros guardados en un drive, listados por carpeta; un libro solo se descarga cuando lo tocas. Indica la dirección WebDAV del drive con un nombre de usuario y una contraseña de aplicación (kDrive, Nextcloud, cualquier servidor WebDAV). Entonces se recorre el drive buscando archivos epub, mobi, azw y fb2. Los resaltados y la página en la que estás se escriben junto a cada libro: la cuenta debe poder escribir allí.</string>
     <string name="webdav_url">dirección WebDAV</string>
     <string name="username">nombre de usuario</string>
     <string name="password">contraseña</string>
@@ -83,4 +82,16 @@
         <item quantity="many">%d libros</item>
         <item quantity="other">%d libros</item>
     </plurals>
+    <!-- highlights and comments, in the books of the library -->
+    <string name="highlight">resaltar</string>
+    <string name="comment">comentar</string>
+    <string name="add_comment">añadir un comentario</string>
+    <string name="edit_comment">editar el comentario</string>
+    <string name="remove_highlight">quitar el resaltado</string>
+    <string name="export_highlights">exportar los resaltados</string>
+    <string name="notes_folder">carpeta de Reader\'s Notes</string>
+    <string name="notes_username">usuario para las notas</string>
+    <string name="notes_password">contraseña para las notas</string>
+    <string name="same_as_library">como la biblioteca</string>
+    <string name="highlights_hint">Resaltados: en un libro de la biblioteca, mantén pulsada una palabra y desliza sobre el pasaje para resaltarlo, con un comentario si quieres; un toque en un resaltado muestra su comentario. Se guardan junto al libro en el drive, con la página en la que estás, y lo siguen en tus otros dispositivos. El menú del libro los exporta. Con la dirección WebDAV de la carpeta de Reader\'s Notes indicada abajo, una nota por libro recoge sus resaltados en Reader\'s Notes.</string>
 </resources>

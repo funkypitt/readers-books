@@ -39,8 +39,7 @@
     <string name="font_mono">моноширинный</string>
     <!-- library: a drive's e-books by folder -->
     <string name="library">библиотека</string>
-    <string name="library_hint">Книги на диске, перечисленные по папкам; книга загружается только когда вы её касаетесь. Вставьте ссылку на публичную папку kDrive или укажите адрес WebDAV диска с именем пользователя и паролем приложения. Затем диск просматривается в поисках файлов epub, mobi, azw и fb2.</string>
-    <string name="share_link">ссылка kDrive</string>
+    <string name="library_hint">Книги на диске, перечисленные по папкам; книга загружается только когда вы её касаетесь. Укажите адрес WebDAV диска с именем пользователя и паролем приложения (kDrive, Nextcloud, любой сервер WebDAV). Затем диск просматривается в поисках файлов epub, mobi, azw и fb2. Выделения и страница, на которой вы остановились, записываются рядом с каждой книгой: учётной записи должна быть разрешена запись.</string>
     <string name="webdav_url">адрес WebDAV</string>
     <string name="username">имя пользователя</string>
     <string name="password">пароль</string>
@@ -84,4 +83,16 @@
         <item quantity="many">%d книг</item>
         <item quantity="other">%d книги</item>
     </plurals>
+    <!-- highlights and comments, in the books of the library -->
+    <string name="highlight">выделить</string>
+    <string name="comment">комментировать</string>
+    <string name="add_comment">добавить комментарий</string>
+    <string name="edit_comment">изменить комментарий</string>
+    <string name="remove_highlight">убрать выделение</string>
+    <string name="export_highlights">экспортировать выделения</string>
+    <string name="notes_folder">папка Reader\'s Notes</string>
+    <string name="notes_username">имя пользователя для заметок</string>
+    <string name="notes_password">пароль для заметок</string>
+    <string name="same_as_library">как у библиотеки</string>
+    <string name="highlights_hint">Выделения: в книге из библиотеки нажмите и удерживайте слово, затем проведите по отрывку, чтобы выделить его, при желании с комментарием; касание выделения показывает комментарий. Они хранятся рядом с книгой на диске вместе со страницей, на которой вы остановились, и следуют за ней на другие ваши устройства. Меню книги их экспортирует. Если ниже указан адрес WebDAV папки Reader\'s Notes, заметка для каждой книги перечисляет её выделения в Reader\'s Notes.</string>
 </resources>

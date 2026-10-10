@@ -35,7 +35,7 @@ data class RemoteBook(
     val name: String,
     /** Folder path from the root of the drive, "" for the root, "/" between levels, no trailing slash. */
     val folder: String,
-    /** What fetches it: the file's URL (WebDAV) or id (share link). */
+    /** What fetches it: the file's URL. */
     val ref: String,
     val size: Long = 0L,
     /** Last change, epoch millis; 0 when the server did not say. */
@@ -55,7 +55,7 @@ data class RemoteBook(
 class Listing(val folders: List<String>, val books: List<RemoteBook>)
 
 /**
- * Something that lists and fetches books: a WebDAV server or a kDrive share link. A folder is
+ * Something that lists and fetches books: a WebDAV server. A folder is
  * named by an opaque reference string, so a scan can be stopped and carried on later.
  */
 interface Remote {
@@ -69,14 +69,14 @@ interface Remote {
 
 class Unauthorized : IOException("wrong login")
 
-private val http: OkHttpClient by lazy {
+internal val http: OkHttpClient by lazy {
     OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS).followRedirects(true).build()
 }
 
 /** Hidden folders and the server's own bins are never worth walking. */
 internal fun skipFolder(name: String) = name.startsWith(".") || name.equals("trash", true) || name.equals("lost+found", true)
 
-private fun check(code: Int) {
+internal fun check(code: Int) {
     if (code == 401 || code == 403) throw Unauthorized()
     if (code != 207 && code !in 200..299) throw IOException("HTTP $code")
 }
@@ -178,65 +178,4 @@ class WebDav(url: String, private val username: String, private val password: St
             }
         }
     }
-}
-
-// ---------------------------------------------------------------------------------------------
-// A public kDrive share link (https://kdrive.infomaniak.com/app/share/<drive>/<uuid>): no login.
-// A folder reference is "<id>|<path>".
-// ---------------------------------------------------------------------------------------------
-
-class KDriveShare(link: String) : Remote {
-    private val driveId: String
-    private val uuid: String
-    private val json = Json { ignoreUnknownKeys = true }
-
-    init {
-        val m = Regex("""/app/share/(\d+)/([a-z0-9-]+)""").find(link.trim()) ?: throw IllegalArgumentException("not a kDrive share link")
-        driveId = m.groupValues[1]; uuid = m.groupValues[2]
-    }
-
-    private fun get(url: String): String {
-        http.newCall(Request.Builder().url(url).get().build()).execute().use { r ->
-            check(r.code)
-            return r.body?.string() ?: throw IOException("empty answer")
-        }
-    }
-
-    override suspend fun roots(): List<String> = withContext(Dispatchers.IO) {
-        val data = json.parseToJsonElement(get("$BASE/2/app/$driveId/share/$uuid/init")).jsonObject["data"]?.jsonObject ?: throw IOException("no data")
-        val id = data["file_id"]?.jsonPrimitive?.longOrNull ?: throw IOException("no file id")
-        listOf("$id|")
-    }
-
-    override suspend fun list(folder: String): Listing = withContext(Dispatchers.IO) {
-        val id = folder.substringBefore('|'); val path = folder.substringAfter('|')
-        val dirs = ArrayList<String>(); val books = ArrayList<RemoteBook>()
-        var cursor: String? = null
-        do {
-            val url = "$BASE/3/app/$driveId/share/$uuid/files/$id/files?limit=200" + (cursor?.let { "&cursor=$it" } ?: "")
-            val rootObj = json.parseToJsonElement(get(url)).jsonObject
-            for (e in rootObj["data"]?.jsonArray ?: break) {
-                val o = e.jsonObject
-                val name = o["name"]?.jsonPrimitive?.contentOrNull ?: continue
-                val fid = o["id"]?.jsonPrimitive?.longOrNull ?: continue
-                if (o["type"]?.jsonPrimitive?.contentOrNull == "dir") { if (!skipFolder(name)) dirs += "$fid|" + (if (path.isEmpty()) name else "$path/$name") }
-                else if (name.substringAfterLast('.', "").lowercase() in BOOK_EXTENSIONS)
-                    books += RemoteBook(name, path, fid.toString(), o["size"]?.jsonPrimitive?.longOrNull ?: 0L, (o["last_modified_at"]?.jsonPrimitive?.longOrNull ?: 0L) * 1000)
-            }
-            cursor = if (rootObj["has_more"]?.jsonPrimitive?.booleanOrNull == true) rootObj["cursor"]?.jsonPrimitive?.contentOrNull else null
-        } while (cursor != null)
-        Listing(dirs, books)
-    }
-
-    override suspend fun download(book: RemoteBook, dest: File) {
-        withContext(Dispatchers.IO) {
-            val req = Request.Builder().url("$BASE/2/app/$driveId/share/$uuid/files/${book.ref}/download").get().build()
-            http.newCall(req).execute().use { r ->
-                check(r.code)
-                r.body?.byteStream()?.use { input -> dest.outputStream().use { input.copyTo(it) } } ?: throw IOException("empty answer")
-            }
-        }
-    }
-
-    companion object { private const val BASE = "https://kdrive.infomaniak.com" }
 }

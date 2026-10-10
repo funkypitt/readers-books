@@ -9,19 +9,17 @@ import org.junit.Test
 
 class CredentialsTest {
     @Test fun roundTrip() {
-        val json = Credentials.build("", "https://x.connect.kdrive.infomaniak.com/", "me", "p w")
+        val json = Credentials.build("https://x.connect.kdrive.infomaniak.com/", "me", "p w")
         val got = Credentials.read(json)
         assertFalse(got.fromFallback)
-        assertNull(got.account.share)
         assertEquals("https://x.connect.kdrive.infomaniak.com/", got.account.url)
         assertEquals("me", got.account.username)
         assertEquals("p w", got.account.password)
     }
 
-    @Test fun shareLinkOnly() {
-        val got = Credentials.read(Credentials.build("https://kdrive.infomaniak.com/app/share/1/abc", "", "", ""))
-        assertEquals("https://kdrive.infomaniak.com/app/share/1/abc", got.account.share)
-        assertNull(got.account.url)
+    /** A file that only names a share link says nothing a library can be made of. */
+    @Test(expected = Credentials.NothingForUs::class) fun shareLinkOnly() {
+        Credentials.read("""{"format":"readers-credentials","version":1,"readers-books":{"share":"https://kdrive.infomaniak.com/app/share/1/abc"}}""")
     }
 
     @Test fun magazineReaderSectionIsAFallback() {
@@ -39,9 +37,9 @@ class CredentialsTest {
     }
 
     @Test fun ownSectionWinsOverFallbacks() {
-        val got = Credentials.read("""{"format":"readers-credentials","version":1,"readers-scanner":{"server":"https://other/","username":"x","password":"y"},"readers-books":{"share":"https://kdrive.infomaniak.com/app/share/2/def"}}""")
+        val got = Credentials.read("""{"format":"readers-credentials","version":1,"readers-scanner":{"server":"https://other/","username":"x","password":"y"},"readers-books":{"url":"https://mine/","username":"me"}}""")
         assertFalse(got.fromFallback)
-        assertEquals("https://kdrive.infomaniak.com/app/share/2/def", got.account.share)
+        assertEquals("https://mine/", got.account.url)
     }
 
     @Test(expected = Credentials.NotCredentials::class) fun otherJson() { Credentials.read("""{"a":1}""") }

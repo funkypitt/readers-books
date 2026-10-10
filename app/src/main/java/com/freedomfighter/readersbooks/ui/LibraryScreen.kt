@@ -85,7 +85,7 @@ fun LibraryScreen(nav: Nav, app: App) {
     }
     BackHandler { nav.pop() }
     // a drive just set up, or set up differently, is walked at once; a walk cut short carries on
-    LaunchedEffect(s.share, s.url, s.username, s.password) {
+    LaunchedEffect(s.url, s.username, s.password) {
         if (!s.libraryConfigured || progress != null) return@LaunchedEffect
         if (!app.remote.matches(s)) scan(true)
         else if (!index.complete && error == null) scan(false)
@@ -242,27 +242,40 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
 // Account rows, shared by the library's first screen and the settings.
 // ---------------------------------------------------------------------------------------------
 
-/** The four fields; `onEdit` names the one tapped ("share", "url", "username", "password"). */
+/** The three fields; `onEdit` names the one tapped ("url", "username", "password"). */
 @Composable
 fun LibraryAccountRows(s: Settings, onEdit: (String) -> Unit) {
-    TextRow(s.share.ifBlank { stringResource(R.string.share_link) }, secondary = stringResource(R.string.share_link)) { onEdit("share") }
     TextRow(s.url.ifBlank { stringResource(R.string.webdav_url) }, secondary = stringResource(R.string.webdav_url)) { onEdit("url") }
     TextRow(s.username.ifBlank { stringResource(R.string.username) }, secondary = stringResource(R.string.username)) { onEdit("username") }
     TextRow(if (s.password.isEmpty()) stringResource(R.string.password) else "••••••••", secondary = stringResource(R.string.password)) { onEdit("password") }
+}
+
+/** Where Reader's Notes keeps its notes, for the note of each book's highlights; the login is the library's unless another is given. */
+@Composable
+fun NotesAccountRows(s: Settings, onEdit: (String) -> Unit) {
+    TextRow(s.notesUrl.ifBlank { stringResource(R.string.notes_folder) }, secondary = stringResource(R.string.notes_folder)) { onEdit("notes_url") }
+    TextRow(s.notesUsername.ifBlank { stringResource(R.string.same_as_library) }, secondary = stringResource(R.string.notes_username)) { onEdit("notes_username") }
+    TextRow(if (s.notesPassword.isEmpty()) stringResource(R.string.same_as_library) else "••••••••", secondary = stringResource(R.string.notes_password)) { onEdit("notes_password") }
 }
 
 /** The prompt for one field, as an overlay; the stored index is dropped when the drive changes. */
 @Composable
 fun LibraryAccountPrompt(app: App, s: Settings, field: String?, onClose: () -> Unit) {
     field ?: return
-    val title = stringResource(when (field) { "share" -> R.string.share_link; "url" -> R.string.webdav_url; "username" -> R.string.username; else -> R.string.password })
-    val initial = when (field) { "share" -> s.share; "url" -> s.url; "username" -> s.username; else -> "" }
-    TextPrompt(title, initial, password = field == "password", onDone = { v ->
+    val title = stringResource(when (field) {
+        "url" -> R.string.webdav_url; "username" -> R.string.username
+        "notes_url" -> R.string.notes_folder; "notes_username" -> R.string.notes_username; "notes_password" -> R.string.notes_password
+        else -> R.string.password
+    })
+    val initial = when (field) { "url" -> s.url; "username" -> s.username; "notes_url" -> s.notesUrl; "notes_username" -> s.notesUsername; else -> "" }
+    TextPrompt(title, initial, password = field.endsWith("password"), onDone = { v ->
         when (field) {
-            "share" -> app.prefs.setLibrary(v, s.url, s.username, s.password)
-            "url" -> app.prefs.setLibrary(s.share, v, s.username, s.password)
-            "username" -> app.prefs.setLibrary(s.share, s.url, v, s.password)
-            else -> app.prefs.setLibrary(s.share, s.url, s.username, v)
+            "notes_url" -> app.prefs.setNotes(v, s.notesUsername, s.notesPassword)
+            "notes_username" -> app.prefs.setNotes(s.notesUrl, v, s.notesPassword)
+            "notes_password" -> app.prefs.setNotes(s.notesUrl, s.notesUsername, v)
+            "url" -> app.prefs.setLibrary(v, s.username, s.password)
+            "username" -> app.prefs.setLibrary(s.url, v, s.password)
+            else -> app.prefs.setLibrary(s.url, s.username, v)
         }
         // A refused login stays on the screen until the account changes: with a new one the
         // scan is free to carry on by itself.
@@ -283,20 +296,23 @@ fun CredentialsRows(app: App, s: Settings) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         message = try {
-            val got = Credentials.read(CredentialsShare.readText(context, uri))
-            val a = got.account
-            // a file that names a drive replaces the whole account: a link and an address never both apply
-            if (a.share != null) app.prefs.setLibrary(a.share, "", "", "")
-            else app.prefs.setLibrary("", a.url ?: s.url, a.username ?: s.username, a.password ?: s.password)
-            app.remote.accountChanged()
-            if (got.fromFallback) importedFrom else imported
+            val text = CredentialsShare.readText(context, uri)
+            // the folder of Reader's Notes, when the file names it: for the notes of the books' highlights
+            val notes = Credentials.readNotes(text)
+            notes?.let { app.prefs.setNotes(it.url, it.username, it.password) }
+            val got = try { Credentials.read(text) } catch (e: Credentials.NothingForUs) { if (notes == null) throw e else null }
+            got?.account?.let { a ->
+                app.prefs.setLibrary(a.url ?: s.url, a.username ?: s.username, a.password ?: s.password)
+                app.remote.accountChanged()
+            }
+            if (got == null || got.fromFallback) importedFrom else imported
         } catch (e: Credentials.NotCredentials) { notCredentials
         } catch (e: Credentials.NothingForUs) { nothingForUs
         } catch (e: Exception) { e.message?.let { context.getString(R.string.credentials_unreadable, it) } ?: notCredentials }
     }
     val shareTitle = stringResource(R.string.export_credentials)
     if (s.libraryStarted) TextRow(shareTitle, secondary = stringResource(R.string.export_credentials_hint)) {
-        CredentialsShare.share(context, Credentials.build(s.share, s.url, s.username, s.password), shareTitle)
+        CredentialsShare.share(context, Credentials.build(s.url, s.username, s.password, Credentials.Notes(s.notesUrl, s.notesUsername, s.notesPassword)), shareTitle)
     }
     TextRow(stringResource(R.string.import_credentials), secondary = message.ifBlank { null }) {
         message = ""

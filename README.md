@@ -10,9 +10,21 @@ network is used only if you set up a library on your own drive. It extends the b
 ## Key points
 
 * The shelf lists title, how far you are, when you last opened it. Tap to read.
-* The right half of the screen turns forward, the left half back. Long press opens the menu:
-  chapters, larger or smaller text, book text in sans-serif or serif (Literata), back to the
-  shelf, remove.
+* A tap on the right third of the screen turns forward, on the left third back, in the middle
+  it opens the menu: chapters, larger or smaller text, book text in sans-serif or serif
+  (Literata), back to the shelf, remove.
+* Highlights and comments, in the books of the library: press and hold a word, slide over the
+  passage, then "highlight" or "comment". A highlight is a grey band behind the words, with a
+  line under it when it carries a comment; a tap on it shows the comment, changes it or removes
+  the highlight. They are kept in a file next to the book on the drive
+  (`<book file>.highlights.json`), so every device that opens the book has them: each device
+  folds its own into that file, highlight by highlight, the one changed last winning. The
+  book's menu exports them as text. Given the WebDAV address of the Reader's Notes folder, the
+  app also keeps a note per book there (folder `Reader's Books`): the passages between
+  quotation marks, in the order of the book, each followed by its comment —
+  [Reader's Notes](https://github.com/funkypitt/readers-notes) shows it read-only.
+* The same file carries the place the book was left at: a book of the library opens where it was
+  last read, on whichever device, and the shelf says how far it is.
 * Add a book from the shelf, from a file manager ("open with"), or by sharing the file to the
   app. Books are copied into the app, so the original can move.
 * The position is kept per book and survives a change of text size or screen. The screen
@@ -22,13 +34,14 @@ network is used only if you set up a library on your own drive. It extends the b
 * A magazine issue (an EPUB whose contents page carries a section, a title and an author per
   article, as the newspapers pipeline writes them) opens on its contents: sections, titles,
   authors and cover pictures. An article is a chapter; back returns to the contents.
-* Optional library: the e-books kept on a drive (a public kDrive share link, or any WebDAV
-  address with a username and an application password, kDrive included), listed by folder
-  and then by name or by date, or all in one list by date, name, author or last opened (the
-  author is what precedes " - " in the file name, else the folder's name). Nothing is downloaded
-  until you tap a book. The scan keeps going while the phone is locked (a quiet notification
-  counts folders and books) and carries on where it stopped if it is cut short. The account can
-  be exported and imported as the Reader's credentials file shared by the other Reader's apps.
+* Optional library: the e-books kept on a drive, at a WebDAV address with a username and an
+  application password (kDrive, Nextcloud, any WebDAV server) that the app may read and write,
+  listed by folder and then by name or by date, or all in one list by date, name, author or
+  last opened (the author is what precedes " - " in the file name, else the folder's name).
+  Nothing is downloaded until you tap a book. The scan keeps going while the phone is locked (a
+  quiet notification counts folders and books) and carries on where it stopped if it is cut
+  short. The account can be exported and imported as the Reader's credentials file shared by
+  the other Reader's apps.
 * One home-screen widget for any launcher: the book being read and the position; tap carries
   on at the current page. The launcher's book tile shows the same.
 

@@ -29,7 +29,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -58,7 +59,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -71,9 +77,12 @@ import com.freedomfighter.readersbooks.R
 import com.freedomfighter.readersbooks.books.Block
 import com.freedomfighter.readersbooks.books.Book
 import com.freedomfighter.readersbooks.books.Entry
+import com.freedomfighter.readersbooks.books.Highlight
+import com.freedomfighter.readersbooks.books.Highlights
 import com.freedomfighter.readersbooks.books.ImageStore
 import com.freedomfighter.readersbooks.books.Magazine
 import com.freedomfighter.readersbooks.books.ParaKind
+import com.freedomfighter.readersbooks.books.Position
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,6 +112,10 @@ fun BookScreen(nav: Nav, app: App, id: String) {
             val settings by app.prefs.settings.collectAsState()
             val current = if (settings.readerSp > 0) settings.readerSp else defaultReaderSp()
             val dark = LocalColors.current.isDark
+            val context = LocalContext.current
+            val exportTitle = stringResource(R.string.export_highlights)
+            val marks by app.highlights.current.collectAsState()
+            val highlighted = marks?.first == app.highlights.key(entry) && marks!!.second.any { !it.deleted }
             TextMenu(
                 title = entry.title,
                 items = buildList {
@@ -112,6 +125,14 @@ fun BookScreen(nav: Nav, app: App, id: String) {
                     add(MenuItem(stringResource(R.string.smaller_text), "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) })
                     add(MenuItem(stringResource(R.string.book_text), stringResource(if (settings.bookSerif) R.string.font_serif else R.string.font_sans) + " → " + stringResource(if (settings.bookSerif) R.string.font_sans else R.string.font_serif)) { app.prefs.setBookSerif(!settings.bookSerif) })
                     add(MenuItem(stringResource(R.string.remove)) { app.library.remove(id); nav.pop() })
+                    if (highlighted) add(MenuItem(stringResource(R.string.export_highlights)) {
+                        runCatching {
+                            context.startActivity(android.content.Intent.createChooser(
+                                android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                                    .putExtra(android.content.Intent.EXTRA_TEXT, app.highlights.export(entry))
+                                    .putExtra(android.content.Intent.EXTRA_SUBJECT, entry.title), exportTitle))
+                        }
+                    })
                 },
                 footer = listOf(
                     MenuItem(stringResource(R.string.shelf)) { nav.pop() },
@@ -131,10 +152,27 @@ fun BookScreen(nav: Nav, app: App, id: String) {
  * scaled to the text width (never taller than the page) that moves to the next page whole.
  */
 private sealed class Piece(val y: Int, val charBase: Int) {
-    class Lines(y: Int, charBase: Int, val layout: StaticLayout, val first: Int, val last: Int) : Piece(y, charBase) {
+    /**
+     * `base` is the place of the block's first character in its chapter, `indents` where, in the
+     * laid-out string, an indent was put in: the indents are not text, and a highlight is counted
+     * in the text.
+     */
+    class Lines(y: Int, charBase: Int, val layout: StaticLayout, val first: Int, val last: Int, val base: Int, val indents: IntArray) : Piece(y, charBase) {
         val top: Int get() = layout.getLineTop(first)
         val height: Int get() = layout.getLineBottom(last) - top
         val startChar: Int get() = charBase + layout.getLineStart(first)
+
+        fun toChapter(laid: Int): Int {
+            var c = laid
+            for (at in indents) { if (at + 2 <= laid) c -= 2 else if (at < laid) c -= laid - at }
+            return base + c
+        }
+
+        fun toLaid(place: Int): Int {
+            var laid = place - base
+            for (at in indents) { if (at <= laid) laid += 2 else break }
+            return laid
+        }
     }
     class Picture(y: Int, charBase: Int, val source: String, val width: Int, val height: Int) : Piece(y, charBase)
 }
@@ -176,11 +214,13 @@ private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: 
     var pieces = ArrayList<Piece>()
     var y = 0
     var charBase = 0
+    var place = 0 // the same count, for highlights: see Highlights.chapterText
     val gap = (paint.textSize * 0.8f).toInt()
     fun newPage() { if (pieces.isNotEmpty()) { pages += PageDef(pieces); pieces = ArrayList() }; y = 0 }
     for (block in ch.blocks) when (block) {
         is Block.Text -> {
-            val layout = buildLayout(blockText(block, dimArgb), paint, widthPx, lineSpacing(paint))
+            val (text, indents) = blockText(block, dimArgb)
+            val layout = buildLayout(text, paint, widthPx, lineSpacing(paint))
             if (y > 0) y += gap
             var line = 0
             while (line < layout.lineCount) {
@@ -192,12 +232,13 @@ private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: 
                     if (y > 0) { newPage(); continue } // try again at the top of a fresh page
                     l++ // a single line taller than the page
                 }
-                pieces += Piece.Lines(y, charBase, layout, line, l - 1)
+                pieces += Piece.Lines(y, charBase, layout, line, l - 1, place, indents)
                 y += layout.getLineBottom(l - 1) - top
                 line = l
                 if (line < layout.lineCount) newPage()
             }
             charBase += block.length
+            place += block.length
         }
         is Block.Image -> {
             val size = images.size(block.source)
@@ -211,6 +252,7 @@ private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: 
                 y += h
             }
             charBase += 1
+            place += 1
         }
     }
     newPage()
@@ -225,12 +267,17 @@ private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: 
  * Indentation is therefore made of em spaces instead of a paragraph style; headings, leads and
  * small print are spans on the same string.
  */
-private fun blockText(block: Block.Text, dimArgb: Int): CharSequence {
+private fun blockText(block: Block.Text, dimArgb: Int): Pair<CharSequence, IntArray> {
     val sb = SpannableStringBuilder()
+    val indents = ArrayList<Int>()
     block.paragraphs.forEachIndexed { i, p ->
         if (i > 0) sb.append("\n")
         val start = sb.length
         val indent = i > 0 && p.kind == ParaKind.NORMAL && block.paragraphs[i - 1].kind == ParaKind.NORMAL
+        if (indent) {
+            var at = start
+            p.text.split('\n').forEach { piece -> indents += at; at += 2 + piece.length + 1 }
+        }
         if (indent) sb.append("\u2003\u2003")
         sb.append(if (indent) p.text.replace("\n", "\n\u2003\u2003") else p.text)
         val end = sb.length
@@ -241,7 +288,7 @@ private fun blockText(block: Block.Text, dimArgb: Int): CharSequence {
             ParaKind.NORMAL -> Unit
         }
     }
-    return sb
+    return sb to indents.toIntArray()
 }
 
 @Composable
@@ -279,6 +326,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
     // The character we want at the top of the page; re-resolved whenever the layout changes.
     var wantedChar by remember(entry.fileName) { mutableStateOf(entry.charOffset) }
     var page by remember(entry.fileName) { mutableStateOf(0) }
+    // Pages turned since the book was opened, and jumps made to a place read on another device.
+    var turns by remember(entry.fileName) { mutableStateOf(0) }
+    var jumps by remember(entry.fileName) { mutableStateOf(0) }
 
     val density = LocalDensity.current
 
@@ -320,7 +370,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             paginate(ch, paint, dimArgb, widthPx, pageHeightPx.toInt(), images)
         }
         // Resolve the wanted character into a page whenever the layout (size, width) changes.
-        LaunchedEffect(layout) { page = layout.pageFor(wantedChar).coerceIn(0, layout.pageCount - 1) }
+        LaunchedEffect(layout, jumps) { page = layout.pageFor(wantedChar).coerceIn(0, layout.pageCount - 1) }
         LaunchedEffect(chapter, page, layout) {
             if (page in 0 until layout.pageCount) {
                 val pct = ((b.charsBefore(chapter) + layout.pageStartChar(page)).toFloat() / b.totalLength.coerceAtLeast(1) * 100).toInt()
@@ -330,11 +380,13 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
 
         fun goTo(c: Int, charOffset: Int) { chapter = c; wantedChar = charOffset }
         fun next() {
+            turns++
             lastTurn = System.currentTimeMillis()
             if (page + 1 < layout.pageCount) { page++; wantedChar = layout.pageStartChar(page) }
             else if (chapter + 1 < b.chapters.size) goTo(chapter + 1, 0)
         }
         fun prev() {
+            turns++
             lastTurn = System.currentTimeMillis()
             if (page > 0) { page--; wantedChar = layout.pageStartChar(page) }
             else if (chapter > 0) goTo(chapter - 1, Int.MAX_VALUE)
@@ -342,6 +394,50 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
 
         val safePage = page.coerceIn(0, layout.pageCount - 1)
         val pageDef = layout.pages[safePage]
+
+        // Highlights and comments, for the books of the library.
+        val selectable = app.highlights.fromLibrary(entry)
+        val current by app.highlights.current.collectAsState()
+        val highlightKey = remember(entry.id, entry.source) { app.highlights.key(entry) }
+        // The place the book had before this opening marked it as read just now: what this
+        // phone has to say to the drive, and what a place read later elsewhere is compared with.
+        val leftAt = remember(entry.fileName) { if (entry.opened > 0L) Position(entry.chapter, entry.charOffset, entry.progress, entry.opened) else null }
+        LaunchedEffect(entry.fileName, entry.source) { if (selectable) app.highlights.open(entry, leftAt) }
+        // Read later on another device: the book opens there, unless a page was already turned here.
+        val arrived by app.highlights.arrived.collectAsState()
+        LaunchedEffect(arrived) {
+            arrived?.takeIf { it.first == highlightKey }?.let { (_, there) ->
+                if (turns == 0) { chapter = there.chapter.coerceIn(0, b.chapters.size - 1); wantedChar = there.charOffset; jumps++ }
+                app.highlights.taken()
+            }
+        }
+        // The place goes to the drive once the reading pauses, and on leaving the book.
+        LaunchedEffect(lastTurn, turns) { if (selectable && turns > 0) { kotlinx.coroutines.delay(30_000L); app.highlights.place(entry.id) } }
+        androidx.compose.runtime.DisposableEffect(entry.fileName) { onDispose { if (selectable) app.highlights.place(entry.id) } }
+        val all = if (selectable && current?.first == highlightKey) current!!.second else emptyList()
+        val shown = remember(all, b) { Highlights.anchor(all, b) }
+        val chapterText = remember(ch) { Highlights.chapterText(ch) }
+        var selecting by remember { mutableStateOf<Pair<Int, Int>?>(null) }     // where the finger went down, where it is
+        var chosen by remember { mutableStateOf<Pair<Int, Int>?>(null) }        // a passage waiting for « highlight » or « comment »
+        var commenting by remember { mutableStateOf<Highlight?>(null) }
+        var opened by remember { mutableStateOf<Highlight?>(null) }
+        var outerPos by remember { mutableStateOf(Offset.Zero) }
+        var canvasPos by remember { mutableStateOf(Offset.Zero) }
+
+        /** The place in the chapter of the character under a point of the screen, or null outside the text. */
+        fun placeAt(pos: Offset): Int? {
+            val x = pos.x - (canvasPos.x - outerPos.x)
+            val y = pos.y - (canvasPos.y - outerPos.y)
+            for (piece in pageDef.pieces) {
+                if (piece !is Piece.Lines || y < piece.y || y >= piece.y + piece.height) continue
+                val line = piece.layout.getLineForVertical((y - piece.y).toInt() + piece.top).coerceIn(piece.first, piece.last)
+                return piece.toChapter(piece.layout.getOffsetForHorizontal(line, x.coerceAtLeast(0f)))
+            }
+            return null
+        }
+        fun highlightAt(pos: Offset): Highlight? = placeAt(pos)?.let { p -> shown.firstOrNull { it.chapter == chapter && p >= it.start && p < it.end } }
+        fun write(h: Highlight) = app.highlights.change(entry, all.filter { it.id != h.id } + h)
+        val marked = chosen ?: selecting?.let { Highlights.words(chapterText, it.first, it.second) }
         // Pictures of this page, decoded off the main thread; the canvas draws what has arrived.
         val bitmaps by produceState<Map<String, Bitmap>>(emptyMap(), pageDef) {
             val wanted = pageDef.pieces.filterIsInstance<Piece.Picture>()
@@ -354,11 +450,48 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         Column(
             Modifier
                 .fillMaxSize()
-                .pointerInput(layout, chapter) {
-                    detectTapGestures(
-                        onTap = { pos -> if (pos.x > size.width / 2) next() else prev() },
-                        onLongPress = { tick(); onMenu() }
-                    )
+                .onGloballyPositioned { outerPos = it.positionInRoot() }
+                .pointerInput(layout, chapter, safePage, shown, selectable) {
+                    // As on a reading tablet: a tap on the left third goes back, on the right third
+                    // forward, in the middle it opens the book's menu. A long press on a word begins
+                    // a highlight, which follows the finger until it lifts.
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        var lifted = false
+                        var moved = false
+                        val held = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull false
+                                if (!change.pressed) { lifted = true; return@withTimeoutOrNull false }
+                                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) { moved = true; return@withTimeoutOrNull false }
+                            }
+                            @Suppress("UNREACHABLE_CODE") false
+                        } == null
+                        if (!held) {
+                            if (lifted && !moved) {
+                                val h = highlightAt(down.position)
+                                when {
+                                    h != null -> opened = h
+                                    down.position.x < size.width / 3f -> prev()
+                                    down.position.x > size.width * 2f / 3f -> next()
+                                    else -> onMenu()
+                                }
+                            }
+                            return@awaitEachGesture
+                        }
+                        tick()
+                        val from = if (selectable) placeAt(down.position) else null
+                        if (from == null) { onMenu(); return@awaitEachGesture }
+                        selecting = from to from
+                        while (true) {
+                            val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) break
+                            placeAt(change.position)?.let { selecting = from to it }
+                            change.consume()
+                        }
+                        chosen = selecting?.let { Highlights.words(chapterText, it.first, it.second) }
+                        selecting = null
+                    }
                 }
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .windowInsetsPadding(WindowInsets.navigationBars)
@@ -367,9 +500,14 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             Row(Modifier.fillMaxWidth().padding(top = topPad).height(headerHeight)) {
                 Small(b.title, Modifier.weight(1f), maxLines = 1, align = TextAlign.Start)
             }
-            Canvas(Modifier.weight(1f).fillMaxWidth().onSizeChanged { canvasHeight = it.height }) {
+            Canvas(Modifier.weight(1f).fillMaxWidth().onSizeChanged { canvasHeight = it.height }.onGloballyPositioned { canvasPos = it.positionInRoot() }) {
                 drawIntoCanvas { c ->
                     val n = c.nativeCanvas
+                    // The band behind what is highlighted, a line under what carries a comment, a
+                    // stronger band behind what is being selected.
+                    val marks = shown.filter { it.chapter == chapter }.map { Mark(it.start, it.end, 0.22f, it.comment.isNotBlank()) } +
+                        listOfNotNull(marked?.let { Mark(it.first, it.second, 0.45f, false) })
+                    if (marks.isNotEmpty()) for (piece in pageDef.pieces) if (piece is Piece.Lines) drawMarks(n, piece, marks, paint, fgArgb, density.density)
                     for (piece in pageDef.pieces) when (piece) {
                         is Piece.Lines -> {
                             // Clip to the bottom of this piece's last whole line, not to the canvas:
@@ -395,6 +533,75 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                 Small("${safePage + 1}/${layout.pageCount} · $progress%", maxLines = 1, align = TextAlign.End)
             }
             VSpace(bottomPad)
+        }
+
+        chosen?.let { (start, end) ->
+            val words = chapterText.substring(start, end)
+            // The very passage is highlighted already: nothing to add, or its comment to write.
+            val same = shown.firstOrNull { it.chapter == chapter && it.start == start && it.end == end }
+            TextMenu(null, listOf(
+                MenuItem(stringResource(R.string.highlight)) { if (same == null) write(Highlights.new(chapter, start, end, words)) },
+                MenuItem(stringResource(R.string.comment)) { commenting = same ?: Highlights.new(chapter, start, end, words) }
+            ), onDismiss = { chosen = null })
+        }
+        opened?.let { h ->
+            val items = listOf(
+                MenuItem(stringResource(if (h.comment.isBlank()) R.string.add_comment else R.string.edit_comment)) { commenting = h },
+                // Kept in the list as removed: that is what tells the other devices.
+                MenuItem(stringResource(R.string.remove_highlight)) { write(h.copy(deleted = true, text = "", comment = "", modified = System.currentTimeMillis())) }
+            )
+            if (h.comment.isBlank()) TextMenu(null, items, onDismiss = { opened = null })
+            else CommentSheet(h.comment, items, onDismiss = { opened = null })
+        }
+        commenting?.let { h ->
+            TextPrompt(stringResource(R.string.comment), h.comment,
+                onDone = { text -> write(h.copy(comment = text, modified = System.currentTimeMillis())); commenting = null },
+                onCancel = { commenting = null })
+        }
+    }
+}
+
+private class Mark(val start: Int, val end: Int, val strength: Float, val commented: Boolean)
+
+private fun drawMarks(n: android.graphics.Canvas, piece: Piece.Lines, marks: List<Mark>, text: TextPaint, fgArgb: Int, density: Float) {
+    val layout = piece.layout
+    val band = Paint()
+    val under = Paint().apply { color = fgArgb }
+    for (l in piece.first..piece.last) {
+        val first = piece.toChapter(layout.getLineStart(l))
+        val last = piece.toChapter(layout.getLineEnd(l))
+        for (m in marks) {
+            if (m.end <= first || m.start >= last) continue
+            val x1 = layout.getPrimaryHorizontal(piece.toLaid(maxOf(m.start, first)))
+            val x2 = if (m.end < last) layout.getPrimaryHorizontal(piece.toLaid(minOf(m.end, last))) else layout.getLineMax(l) + layout.getLineLeft(l)
+            if (x2 <= x1) continue
+            val top = (piece.y + layout.getLineTop(l) - piece.top).toFloat()
+            val bottom = piece.y + layout.getLineBaseline(l) - piece.top + text.fontMetrics.descent
+            band.color = fgArgb
+            band.alpha = (m.strength * 255).toInt()
+            n.drawRect(x1, top, x2, bottom, band)
+            if (m.commented) n.drawRect(x1, bottom - density, x2, bottom + density, under)
+        }
+    }
+}
+
+/** A highlight's comment, in full, with what can be done to it underneath. */
+@Composable
+private fun CommentSheet(comment: String, items: List<MenuItem>, onDismiss: () -> Unit) {
+    val colors = LocalColors.current
+    BackHandler(onBack = onDismiss)
+    Box(Modifier.fillMaxSize().background(colors.bg.copy(alpha = 0.6f)).noRippleClickable(onClick = onDismiss)) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(colors.bg).noRippleClickable { }
+                .windowInsetsPadding(WindowInsets.navigationBars)
+        ) {
+            Rule(color = colors.fg)
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                T(comment, Modifier.padding(horizontal = rowPadH, vertical = 16.dp), size = LocalTypo.current.title, maxLines = 200, align = TextAlign.Start)
+            }
+            Rule(Modifier.padding(vertical = 6.dp))
+            items.forEach { item -> TextRow(item.label, size = LocalTypo.current.title, onClick = { onDismiss(); item.action() }) }
+            VSpace(8.dp)
         }
     }
 }

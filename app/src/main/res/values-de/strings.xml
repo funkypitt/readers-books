@@ -39,8 +39,7 @@
     <string name="font_mono">Festbreite</string>
     <!-- library: a drive's e-books by folder -->
     <string name="library">Bibliothek</string>
-    <string name="library_hint">Bücher auf einem Drive, nach Ordnern aufgelistet; ein Buch wird erst heruntergeladen, wenn Sie es antippen. Fügen Sie den Link einer öffentlichen kDrive-Freigabe ein, oder geben Sie die WebDAV-Adresse des Drives mit Benutzername und Anwendungspasswort an. Das Drive wird dann nach epub-, mobi-, azw- und fb2-Dateien durchsucht.</string>
-    <string name="share_link">kDrive-Freigabelink</string>
+    <string name="library_hint">Bücher auf einem Drive, nach Ordnern aufgelistet; ein Buch wird erst heruntergeladen, wenn Sie es antippen. Geben Sie die WebDAV-Adresse des Drives mit Benutzername und Anwendungspasswort an (kDrive, Nextcloud, jeder WebDAV-Server). Das Drive wird dann nach epub-, mobi-, azw- und fb2-Dateien durchsucht. Markierungen und die Seite, auf der Sie sind, werden neben jedes Buch geschrieben: das Konto muss dort schreiben dürfen.</string>
     <string name="webdav_url">WebDAV-Adresse</string>
     <string name="username">Benutzername</string>
     <string name="password">Passwort</string>
@@ -82,4 +81,16 @@
         <item quantity="one">%d Buch</item>
         <item quantity="other">%d Bücher</item>
     </plurals>
+    <!-- highlights and comments, in the books of the library -->
+    <string name="highlight">markieren</string>
+    <string name="comment">kommentieren</string>
+    <string name="add_comment">Kommentar hinzufügen</string>
+    <string name="edit_comment">Kommentar ändern</string>
+    <string name="remove_highlight">Markierung entfernen</string>
+    <string name="export_highlights">Markierungen exportieren</string>
+    <string name="notes_folder">Ordner von Reader\'s Notes</string>
+    <string name="notes_username">Benutzername für die Notizen</string>
+    <string name="notes_password">Passwort für die Notizen</string>
+    <string name="same_as_library">wie die Bibliothek</string>
+    <string name="highlights_hint">Markierungen: Halten Sie in einem Buch aus der Bibliothek ein Wort gedrückt und streichen Sie über die Stelle, um sie zu markieren, auf Wunsch mit Kommentar; ein Tippen auf eine Markierung zeigt ihren Kommentar. Sie liegen neben dem Buch auf dem Drive, mit der Seite, auf der Sie sind, und folgen ihm auf Ihre anderen Geräte. Das Menü des Buchs exportiert sie. Mit der unten angegebenen WebDAV-Adresse des Ordners von Reader\'s Notes führt eine Notiz pro Buch seine Markierungen in Reader\'s Notes auf.</string>
 </resources>

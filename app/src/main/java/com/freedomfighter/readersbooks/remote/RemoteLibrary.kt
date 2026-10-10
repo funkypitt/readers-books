@@ -70,16 +70,12 @@ class RemoteLibrary(private val context: Context) {
     private var job: Job? = null
     private var requested: Pair<Settings, Boolean>? = null
 
-    /** The settings' share link wins over the address; null when nothing usable is set. */
+    /** Null when nothing usable is set. */
     fun remote(s: Settings): Remote? = runCatching {
-        when {
-            s.share.isNotBlank() -> KDriveShare(s.share)
-            s.url.isNotBlank() && s.username.isNotBlank() && s.password.isNotEmpty() -> WebDav(s.url, s.username, s.password)
-            else -> null
-        }
+        if (s.url.isNotBlank() && s.username.isNotBlank() && s.password.isNotEmpty()) WebDav(s.url, s.username, s.password) else null
     }.getOrNull()
 
-    private fun sourceKey(s: Settings) = if (s.share.isNotBlank()) "share:" + s.share.trim() else "dav:" + s.url.trim() + "@" + s.username.trim()
+    private fun sourceKey(s: Settings) = "dav:" + s.url.trim() + "@" + s.username.trim()
 
     /** True when the stored index was made with these very settings. */
     fun matches(s: Settings) = _index.value.source == sourceKey(s) && _index.value.scannedAt > 0L

@@ -25,18 +25,21 @@ data class Settings(
     val keepScreenOn: Boolean = true,
     /** Book text in the serif reading face (Literata) instead of the sans-serif one. */
     val bookSerif: Boolean = false,
-    /** The optional library: a public kDrive share link, or a WebDAV address with a login. */
-    val share: String = "",
+    /** The optional library: a WebDAV address with a login, which the app reads and writes. */
     val url: String = "",
     val username: String = "",
     val password: String = "",
+    /** Where Reader's Notes keeps its notes (a WebDAV folder), for the note of each book's highlights; the login is the library's unless another is given. */
+    val notesUrl: String = "",
+    val notesUsername: String = "",
+    val notesPassword: String = "",
     val librarySort: LibrarySort = LibrarySort.NAME,
     val allBooksSort: AllBooksSort = AllBooksSort.NEWEST
 ) {
-    /** A share link alone, or an address with a login: either reaches the library. */
-    val libraryConfigured: Boolean get() = share.isNotBlank() || (url.isNotBlank() && username.isNotBlank() && password.isNotEmpty())
+    /** An address with a login: that is what reaches the library. */
+    val libraryConfigured: Boolean get() = url.isNotBlank() && username.isNotBlank() && password.isNotEmpty()
     /** Anything typed at all, so the setup rows know whether to show what is there. */
-    val libraryStarted: Boolean get() = share.isNotBlank() || url.isNotBlank() || username.isNotBlank() || password.isNotEmpty()
+    val libraryStarted: Boolean get() = url.isNotBlank() || username.isNotBlank() || password.isNotEmpty()
 }
 
 class Prefs(context: Context) {
@@ -56,10 +59,12 @@ class Prefs(context: Context) {
         keepScreenOn = sp.getBoolean("keep_screen_on", true),
         // Never chosen: a serif app font used to give serif pages, and still does.
         bookSerif = if (sp.contains("book_serif")) sp.getBoolean("book_serif", false) else sp.getString("font", null) == FontChoice.SERIF.name,
-        share = sp.getString("library_share", "") ?: "",
         url = sp.getString("library_url", "") ?: "",
         username = sp.getString("library_username", "") ?: "",
         password = Secret.decrypt(sp.getString("library_password", "") ?: ""),
+        notesUrl = sp.getString("notes_url", "") ?: "",
+        notesUsername = sp.getString("notes_username", "") ?: "",
+        notesPassword = Secret.decrypt(sp.getString("notes_password", "") ?: ""),
         librarySort = enumOr(sp.getString("library_sort", null), LibrarySort.NAME),
         allBooksSort = enumOr(sp.getString("all_books_sort", null), AllBooksSort.NEWEST)
     )
@@ -77,11 +82,16 @@ class Prefs(context: Context) {
     fun setLibrarySort(v: LibrarySort) = sp.edit().putString("library_sort", v.name).apply()
     fun setAllBooksSort(v: AllBooksSort) = sp.edit().putString("all_books_sort", v.name).apply()
     /** The library account; the password is kept encrypted. Blank keys are kept as they are by the import, cleared here. */
-    fun setLibrary(share: String, url: String, username: String, password: String) = sp.edit()
-        .putString("library_share", share.trim())
+    fun setLibrary(url: String, username: String, password: String) = sp.edit()
+        .remove("library_share")
         .putString("library_url", url.trim())
         .putString("library_username", username.trim())
         .putString("library_password", runCatching { Secret.encrypt(password) }.getOrDefault(""))
+        .apply()
+    fun setNotes(url: String, username: String, password: String) = sp.edit()
+        .putString("notes_url", url.trim())
+        .putString("notes_username", username.trim())
+        .putString("notes_password", if (password.isEmpty()) "" else runCatching { Secret.encrypt(password) }.getOrDefault(""))
         .apply()
     fun toggleTheme(systemIsDark: Boolean) {
         val dark = when (_settings.value.theme) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> systemIsDark }

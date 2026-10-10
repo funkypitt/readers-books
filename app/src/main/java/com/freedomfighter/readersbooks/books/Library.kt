@@ -25,7 +25,9 @@ data class Entry(
     /** A magazine issue (articles with a contents page) rather than a book. */
     val magazine: Boolean = false,
     /** Where the library fetched it from (its reference on the drive), so the shelf copy is found again. */
-    val source: String? = null
+    val source: String? = null,
+    /** The name of its file on the drive, which is the name its highlights and its note go by. */
+    val sourceName: String? = null
 )
 
 @Serializable
@@ -60,8 +62,9 @@ class Library(private val context: Context) {
     fun get(id: String): Entry? = _books.value.firstOrNull { it.id == id }
     fun bySource(source: String): Entry? = _books.value.firstOrNull { it.source == source }
 
-    fun savePosition(id: String, chapter: Int, charOffset: Int, progress: Int) = update { l ->
-        l.map { if (it.id == id) it.copy(chapter = chapter, charOffset = charOffset, progress = progress, opened = System.currentTimeMillis()) else it }
+    /** `at` is given for a place read on another device: it keeps the date it was read. */
+    fun savePosition(id: String, chapter: Int, charOffset: Int, progress: Int, at: Long = System.currentTimeMillis()) = update { l ->
+        l.map { if (it.id == id) it.copy(chapter = chapter, charOffset = charOffset, progress = progress, opened = at) else it }
     }
 
     fun touch(id: String) = update { l -> l.map { if (it.id == id) it.copy(opened = System.currentTimeMillis()) else it } }
@@ -96,7 +99,7 @@ class Library(private val context: Context) {
         cache[fileName] = book
         // the same book again replaces the old copy but keeps its place
         val same = _books.value.firstOrNull { it.title == book.title && it.format == format }
-        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0, magazine = book.magazine != null, source = source ?: same?.source)
+        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0, magazine = book.magazine != null, source = source ?: same?.source, sourceName = if (source != null) displayName else same?.sourceName)
         update { l -> l.filter { it.id != same?.id }.also { same?.let { s -> File(dir, s.fileName).delete() } } + entry }
         entry
     }
