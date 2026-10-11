@@ -45,6 +45,15 @@
     <string name="webdav_url">WebDAV address</string>
     <string name="username">username</string>
     <string name="password">password</string>
+    <string name="sync_now">sync now</string>
+    <string name="library_folders">folders of the library</string>
+    <string name="library_folders_hint">The whole drive is in the library. Choose folders to keep only those, with everything inside them: the library is then synced faster. The transcriptions of Reader\'s Podcasts stay in any case.</string>
+    <string name="whole_drive">the whole drive</string>
+    <string name="in_folder">in %1$s</string>
+    <string name="folders_offer">keep only some folders?</string>
+    <string name="folders_offer_hint">%1$d folders hold books — choose the ones for the library, or leave the whole drive</string>
+    <string name="export_saved">saved as %1$s</string>
+    <string name="share_export">share this file…</string>
     <string name="scan_again">scan the drive again</string>
     <string name="scanning">scanning… %1$d folders, %2$d books</string>
     <string name="scanned_at">scanned on %1$s</string>
@@ -79,6 +88,10 @@
     <string name="stop_scan">stop the scan</string>
     <string name="notif_channel">library scan</string>
     <string name="notif_scanning">scanning the drive</string>
+    <plurals name="n_folders_chosen">
+        <item quantity="one">%d folder chosen</item>
+        <item quantity="other">%d folders chosen</item>
+    </plurals>
     <plurals name="n_books">
         <item quantity="one">%d book</item>
         <item quantity="other">%d books</item>

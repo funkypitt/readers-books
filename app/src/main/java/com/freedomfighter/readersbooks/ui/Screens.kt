@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.freedomfighter.readersbooks.App
@@ -50,6 +51,7 @@ sealed class Screen {
     data class Chapters(val id: String) : Screen()
     data object Settings : Screen()
     data object Library : Screen()
+    data object LibraryFolders : Screen()
     data class Folder(val path: String) : Screen()
     data object AllBooks : Screen()
 }
@@ -142,6 +144,7 @@ fun SettingsScreen(nav: Nav, app: App) {
     val colors = LocalColors.current
     val current = if (s.readerSp > 0) s.readerSp else defaultReaderSp()
     var prompt by remember { mutableStateOf<String?>(null) }
+    val export = rememberCredentialsExport()
     BackHandler { nav.pop() }
     Page {
         Column(Modifier.fillMaxSize()) {
@@ -163,7 +166,8 @@ fun SettingsScreen(nav: Nav, app: App) {
                 Rule(Modifier.padding(vertical = 8.dp))
                 Small(stringResource(R.string.library_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 12)
                 LibraryAccountRows(s) { prompt = it }
-                CredentialsRows(app, s)
+                if (s.libraryConfigured) TextRow(stringResource(R.string.library_folders), secondary = if (s.libraryFolders.isEmpty()) stringResource(R.string.whole_drive) else pluralStringResource(R.plurals.n_folders_chosen, s.libraryFolders.size, s.libraryFolders.size)) { nav.push(Screen.LibraryFolders) }
+                CredentialsRows(app, s, export)
                 if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.prefs.setLibrary("", "", "") }
                 Rule(Modifier.padding(vertical = 8.dp))
                 Small(stringResource(R.string.highlights_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 16)
@@ -177,5 +181,6 @@ fun SettingsScreen(nav: Nav, app: App) {
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
         LibraryAccountPrompt(app, s, prompt) { prompt = null }
+        CredentialsExportMenu(export)
     }
 }

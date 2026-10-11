@@ -47,15 +47,20 @@ data class Folder(val path: String, val count: Int) { val name: String get() = p
 
 /** Where Reader's Podcasts puts what was said in an episode, a small book each. */
 const val TRANSCRIPTS_FOLDER = "transcriptions"
+/** Opened later than this after the last sync, the library is synced again by itself. */
+const val STALE_AFTER_MS = 10 * 60 * 1000L
 private const val MAX_FOLDERS = 20000
 private const val PARALLEL = 3
 private const val ATTEMPTS = 3
 
 /**
- * The drive's e-books, kept on disk so the library opens at once. A scan walks the tree level
- * by level and saves after each level: stopped (lock screen, network gone, error), it resumes
- * from the saved frontier instead of starting over. It runs in [ScanService] so a locked phone
- * does not end it. Nothing is downloaded until a book is tapped.
+ * The drive's e-books, kept on disk so the library opens at once. A sync walks the tree (the
+ * chosen folders only, when some are chosen) and merges each folder as it is listed: what is
+ * known stays on the screen, new books appear, books gone from the drive go, and the list never
+ * empties while the drive is walked. Saved every two seconds, a sync that was stopped (lock
+ * screen, network gone, error) resumes from the saved frontier instead of starting over. Asked
+ * for by hand it runs in [ScanService] so a locked phone does not end it; at the opening of the
+ * library it runs quietly in the app. Nothing is downloaded until a book is tapped.
  */
 class RemoteLibrary(private val context: Context) {
     private val file = File(context.filesDir, "library-index.json")
@@ -71,6 +76,7 @@ class RemoteLibrary(private val context: Context) {
     val error: StateFlow<Throwable?> = _error
     private var job: Job? = null
     private var requested: Pair<Settings, Boolean>? = null
+    private var chosen: List<String> = emptyList()
 
     /** Null when nothing usable is set. */
     fun remote(s: Settings): Remote? = runCatching {
@@ -84,17 +90,32 @@ class RemoteLibrary(private val context: Context) {
 
     val scanning: Boolean get() = job?.isActive == true
 
-    fun folders(): List<Folder> = _index.value.books.groupBy { it.folder }.map { (p, b) -> Folder(p, b.size) }.sortedWith(compareBy({ it.path.lowercase() }))
+    /** The books in the library: those of the chosen folders, or all of them. */
+    fun shown(s: Settings): List<RemoteBook> = _index.value.books.filter { Folders.inLibrary(s.libraryFolders, it.folder) }
+
+    fun folders(s: Settings): List<Folder> = shown(s).groupBy { it.folder }.map { (p, b) -> Folder(p, b.size) }.sortedWith(compareBy({ it.path.lowercase() }))
+
+    /** Every folder the drive was seen to hold books in, chosen or not: what the choice is made from. */
+    fun knownFolders(): List<Folder> = _index.value.books.groupBy { it.folder }.map { (p, b) -> Folder(p, b.size) }.sortedWith(compareBy({ it.path.lowercase() }))
 
     fun books(folder: String): List<RemoteBook> = _index.value.books.filter { it.folder == folder }
 
-    /** Ask for a scan: from scratch, or carrying on from the saved frontier and the failed folders. */
+    /** True when the last sync is old enough for the library to sync again by itself at its opening. */
+    fun stale(now: Long = System.currentTimeMillis()) = now - _index.value.scannedAt > STALE_AFTER_MS
+
+    /**
+     * Ask for a sync by hand, in the foreground service: from scratch when `fresh` (or when the
+     * account changed), else carrying on an unfinished walk, else the whole library again.
+     */
     fun requestScan(s: Settings, fresh: Boolean) {
         if (scanning || remote(s) == null) return
         requested = s to (fresh || !matches(s))
         val intent = Intent(context, ScanService::class.java)
         if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
     }
+
+    /** The sync at the opening of the library: the same walk, quietly in the app, without a notification. */
+    fun syncQuietly(s: Settings) { if (!scanning && matches(s)) scan(s, false) }
 
     /** Called by the service once it is in the foreground. Returns the job to wait for. */
     internal fun runRequested(): Job? {
@@ -107,11 +128,17 @@ class RemoteLibrary(private val context: Context) {
         if (scanning) return job
         val remote = remote(s) ?: return null
         _error.value = null
-        val start = if (fresh) Index(source = sourceKey(s), complete = false) else _index.value
+        chosen = s.libraryFolders
+        val idx = _index.value
+        // from scratch; or an unfinished walk carried on; or the whole library walked again
+        val start = if (fresh) Index(source = sourceKey(s), complete = false)
+            else if (!idx.complete) idx
+            else idx.copy(complete = false, frontier = emptyList(), folders = 0)
+        val fromTop = fresh || idx.complete
         _progress.value = Progress(start.folders, start.books.size, start.failed.size)
         job = scope.launch {
             try {
-                walk(remote, start, fresh)
+                walk(remote, start, fromTop)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -123,16 +150,18 @@ class RemoteLibrary(private val context: Context) {
         return job
     }
 
-    private suspend fun walk(remote: Remote, start: Index, fresh: Boolean) = coroutineScope {
+    private suspend fun walk(remote: Remote, start: Index, fromTop: Boolean) = coroutineScope {
         var idx = start
-        if (fresh) {
-            // the whole tree at once, when the server allows it
-            val all = remote.listAll()
+        val roots = Folders.roots(chosen).map { remote.folderRef(it) }
+        if (fromTop) {
+            // the whole tree at once, when the server allows it and the whole drive is wanted
+            val all = if (chosen.isEmpty()) remote.listAll() else null
             if (all != null) { save(idx.copy(books = all, complete = true, frontier = emptyList(), failed = emptyList(), folders = all.map { it.folder }.toSet().size, scannedAt = System.currentTimeMillis())); return@coroutineScope }
-            idx = idx.copy(frontier = remote.roots())
+            idx = idx.copy(frontier = roots)
         }
         // A pool of workers over one queue, so a slow folder holds nobody else back. Folders that
-        // failed last time get another chance now.
+        // failed last time get another chance now. Each folder listed is merged into the books
+        // known so far, so the library stays whole on the screen while the drive is walked.
         val books = ArrayList(idx.books)
         val queue = ArrayDeque((idx.frontier + idx.failed).distinct())
         val inFlight = HashSet<String>()
@@ -156,11 +185,20 @@ class RemoteLibrary(private val context: Context) {
                     val r = listWithRetries(remote, f)
                     lock.withLock {
                         inFlight -= f
-                        r.onSuccess { queue += it.folders; books += it.books; folders++ }
+                        r.onSuccess {
+                            queue += it.folders; folders++
+                            val merged = Folders.merge(books, remote.folderPath(f), it.folders.map { d -> remote.folderPath(d) }, it.books)
+                            books.clear(); books += merged
+                        }
                         // A refused login puts the folder back on the list: once the login is put
                         // right the scan carries on from it, instead of finding nothing left to do
-                        // and calling the drive empty.
-                        r.onFailure { e -> if (e is Unauthorized) { fatal = e; queue.addFirst(f) } else failed += f }
+                        // and calling the drive empty. A chosen folder the drive no longer has
+                        // (or no transcripts folder yet) is simply empty.
+                        r.onFailure { e ->
+                            if (e is Unauthorized) { fatal = e; queue.addFirst(f) }
+                            else if (f in roots && e.message == "HTTP 404") { val p = remote.folderPath(f); books.removeAll { Folders.under(p, it.folder) } }
+                            else failed += f
+                        }
                         dirty = true
                         _progress.value = Progress(folders, books.size, failed.size)
                     }
@@ -188,7 +226,9 @@ class RemoteLibrary(private val context: Context) {
             catch (e: Unauthorized) { return Result.failure(e) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                if (e !is IOException || ++attempt >= ATTEMPTS) return Result.failure(e)
+                android.util.Log.w("ReadersBooks", "folder $folder: $e")
+                // a folder that is not there will not appear by waiting
+                if (e !is IOException || e.message == "HTTP 404" || ++attempt >= ATTEMPTS) return Result.failure(e)
                 delay(2000L * attempt * attempt)
             }
         }
@@ -213,7 +253,7 @@ class RemoteLibrary(private val context: Context) {
         val source = _index.value.source
         scope.launch {
             try {
-                val top = remote.roots().first() + java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20") + "/"
+                val top = remote.folderRef(name)
                 val found = ArrayList<RemoteBook>()
                 val queue = ArrayDeque(listOf(top))
                 var gone = false

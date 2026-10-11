@@ -43,6 +43,15 @@
     <string name="webdav_url">адрес WebDAV</string>
     <string name="username">имя пользователя</string>
     <string name="password">пароль</string>
+    <string name="sync_now">синхронизировать сейчас</string>
+    <string name="library_folders">папки библиотеки</string>
+    <string name="library_folders_hint">В библиотеке весь диск. Выберите папки, чтобы оставить только их, со всем содержимым: библиотека тогда синхронизируется быстрее. Расшифровки Reader\'s Podcasts остаются в любом случае.</string>
+    <string name="whole_drive">весь диск</string>
+    <string name="in_folder">в %1$s</string>
+    <string name="folders_offer">оставить только некоторые папки?</string>
+    <string name="folders_offer_hint">в %1$d папках есть книги — выберите папки библиотеки или оставьте весь диск</string>
+    <string name="export_saved">сохранено как %1$s</string>
+    <string name="share_export">поделиться этим файлом…</string>
     <string name="scan_again">просмотреть диск заново</string>
     <string name="scanning">просмотр… папок: %1$d, книг: %2$d</string>
     <string name="scanned_at">просмотрено %1$s</string>
@@ -77,6 +86,12 @@
     <string name="stop_scan">остановить просмотр</string>
     <string name="notif_channel">просмотр библиотеки</string>
     <string name="notif_scanning">просмотр диска</string>
+    <plurals name="n_folders_chosen">
+        <item quantity="one">%d папка выбрана</item>
+        <item quantity="few">%d папки выбраны</item>
+        <item quantity="many">%d папок выбрано</item>
+        <item quantity="other">%d папки выбраны</item>
+    </plurals>
     <plurals name="n_books">
         <item quantity="one">%d книга</item>
         <item quantity="few">%d книги</item>

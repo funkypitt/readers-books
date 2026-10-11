@@ -65,6 +65,10 @@ interface Remote {
     suspend fun listAll(): List<RemoteBook>? = null
     suspend fun list(folder: String): Listing
     suspend fun download(book: RemoteBook, dest: File)
+    /** The reference of a folder named by its path below the top of the drive ("" = the top). */
+    fun folderRef(path: String): String
+    /** The path below the top of the drive of a folder's reference, decoded. */
+    fun folderPath(ref: String): String
 }
 
 class Unauthorized : IOException("wrong login")
@@ -92,6 +96,11 @@ class WebDav(url: String, private val username: String, private val password: St
     private class Item(val href: String, val isDir: Boolean, val size: Long, val modified: Long)
 
     override suspend fun roots() = listOf(base)
+
+    override fun folderRef(path: String): String =
+        base + path.split('/').filter { it.isNotEmpty() }.joinToString("") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") + "/" }
+
+    override fun folderPath(ref: String): String = relative(ref).split('/').filter { it.isNotEmpty() }.joinToString("/") { it.decoded() }
 
     /** One request for the whole tree. Many servers refuse it or quietly answer for one level only. */
     override suspend fun listAll(): List<RemoteBook>? = withContext(Dispatchers.IO) {

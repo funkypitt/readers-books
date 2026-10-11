@@ -15,7 +15,7 @@ object Credentials {
     const val FALLBACK = "magazine-reader"
     /** Scanner, Notes and Recorder keep a WebDAV account under "server": the drive and login do, their folder does not. */
     val SERVER_FALLBACKS = listOf("readers-scanner", "readers-notes", "readers-recorder")
-    const val FILE_NAME = "readers-credentials-books.json"
+    const val FILE_NAME = "readers-books-credentials.json"
 
     /** What a file brings; null = not in the file, keep what is set. */
     data class Account(val url: String?, val username: String?, val password: String?) {

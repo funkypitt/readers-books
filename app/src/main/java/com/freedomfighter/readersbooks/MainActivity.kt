@@ -18,6 +18,7 @@ import com.freedomfighter.readersbooks.ui.AllBooksScreen
 import com.freedomfighter.readersbooks.ui.BookChaptersScreen
 import com.freedomfighter.readersbooks.ui.BookScreen
 import com.freedomfighter.readersbooks.ui.FolderScreen
+import com.freedomfighter.readersbooks.ui.LibraryFoldersScreen
 import com.freedomfighter.readersbooks.ui.LibraryScreen
 import com.freedomfighter.readersbooks.ui.LocalColors
 import com.freedomfighter.readersbooks.ui.Nav
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
                     is Screen.Chapters -> BookChaptersScreen(nav, app, s.id)
                     Screen.Settings -> SettingsScreen(nav, app)
                     Screen.Library -> LibraryScreen(nav, app)
+                    Screen.LibraryFolders -> LibraryFoldersScreen(nav, app)
                     is Screen.Folder -> FolderScreen(nav, app, s.path)
                     Screen.AllBooks -> AllBooksScreen(nav, app)
                 }

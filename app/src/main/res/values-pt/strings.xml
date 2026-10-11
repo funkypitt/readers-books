@@ -43,6 +43,15 @@
     <string name="webdav_url">endereço WebDAV</string>
     <string name="username">nome de utilizador</string>
     <string name="password">palavra-passe</string>
+    <string name="sync_now">sincronizar agora</string>
+    <string name="library_folders">pastas da biblioteca</string>
+    <string name="library_folders_hint">Toda a drive está na biblioteca. Escolha pastas para ficar só com essas, com tudo o que contêm: a biblioteca sincroniza-se então mais depressa. As transcrições do Reader\'s Podcasts ficam em todo o caso.</string>
+    <string name="whole_drive">toda a drive</string>
+    <string name="in_folder">em %1$s</string>
+    <string name="folders_offer">ficar só com algumas pastas?</string>
+    <string name="folders_offer_hint">%1$d pastas contêm livros — escolha as da biblioteca, ou deixe toda a drive</string>
+    <string name="export_saved">guardado como %1$s</string>
+    <string name="share_export">partilhar este ficheiro…</string>
     <string name="scan_again">percorrer a drive de novo</string>
     <string name="scanning">a percorrer… %1$d pastas, %2$d livros</string>
     <string name="scanned_at">percorrida a %1$s</string>
@@ -77,6 +86,11 @@
     <string name="stop_scan">parar o percurso</string>
     <string name="notif_channel">percurso da biblioteca</string>
     <string name="notif_scanning">a percorrer a drive</string>
+    <plurals name="n_folders_chosen">
+        <item quantity="one">%d pasta escolhida</item>
+        <item quantity="many">%d pastas escolhidas</item>
+        <item quantity="other">%d pastas escolhidas</item>
+    </plurals>
     <plurals name="n_books">
         <item quantity="one">%d livro</item>
         <item quantity="many">%d livros</item>

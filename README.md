@@ -38,15 +38,21 @@ network is used only if you set up a library on your own drive. It extends the b
   application password (kDrive, Nextcloud, any WebDAV server) that the app may read and write,
   listed by folder and then by name or by date, or all in one list by date, name, author or
   last opened (the author is what precedes " - " in the file name, else the folder's name).
-  Nothing is downloaded until you tap a book. The scan keeps going while the phone is locked (a
-  quiet notification counts folders and books) and carries on where it stopped if it is cut
-  short. The account can be exported and imported as the Reader's credentials file shared by
-  the other Reader's apps.
+  Nothing is downloaded until you tap a book. The library syncs by itself when opened after
+  ten minutes or more, and at once with the "sync now" row at its top; what is known stays on
+  the screen while the drive is walked, new books appear, books gone from the drive go. Asked
+  for by hand, a sync keeps going while the phone is locked (a quiet notification counts
+  folders and books) and carries on where it stopped if it is cut short. Once the drive has
+  been walked, the library offers to keep only some of its folders (with everything inside
+  them): fewer folders, faster syncs — the choice is in the library's menu and in the settings.
+  The account can be exported and imported as the Reader's credentials file shared by the
+  other Reader's apps (`readers-books-credentials.json`, saved where you choose, then offered
+  to the share menu).
 * The transcripts made in [Reader's Podcasts](https://github.com/funkypitt/readers-podcasts)
   arrive by themselves: it sends each one, as a small book, to a `transcriptions` folder at the
   top of the library (a folder per channel), and that folder is looked at again every time the
-  library is opened — no scan to ask for. They are books like the others: read, highlighted,
-  commented, with their note in Reader's Notes.
+  library is opened, whatever folders are chosen — no sync to ask for. They are books like the
+  others: read, highlighted, commented, with their note in Reader's Notes.
 * One home-screen widget for any launcher: the book being read and the position; tap carries
   on at the current page. The launcher's book tile shows the same.
 

@@ -36,6 +36,7 @@ import com.freedomfighter.readersbooks.data.Credentials
 import com.freedomfighter.readersbooks.data.CredentialsShare
 import com.freedomfighter.readersbooks.data.LibrarySort
 import com.freedomfighter.readersbooks.data.Settings
+import com.freedomfighter.readersbooks.remote.Folders
 import com.freedomfighter.readersbooks.remote.RemoteBook
 import com.freedomfighter.readersbooks.remote.Unauthorized
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,7 @@ fun LibraryScreen(nav: Nav, app: App) {
     var menu by remember { mutableStateOf(false) }
     var prompt by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val export = rememberCredentialsExport()
     // the scan's notification (Android 13+); refused, the scan still runs, only unseen
     var pendingScan by remember { mutableStateOf<Boolean?>(null) }
     val askNotif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { pendingScan?.let { app.remote.requestScan(s, it) }; pendingScan = null }
@@ -84,11 +86,13 @@ fun LibraryScreen(nav: Nav, app: App) {
         } else app.remote.requestScan(s, fresh)
     }
     BackHandler { nav.pop() }
-    // a drive just set up, or set up differently, is walked at once; a walk cut short carries on
+    // a drive just set up, or set up differently, is walked at once; a walk cut short carries on;
+    // a library not synced for a while is synced again quietly; a fresh one only looks for new transcripts
     LaunchedEffect(s.url, s.username, s.password) {
         if (!s.libraryConfigured || progress != null) return@LaunchedEffect
         if (!app.remote.matches(s)) scan(true)
         else if (!index.complete && error == null) scan(false)
+        else if (app.remote.stale() && error == null) app.remote.syncQuietly(s)
         else app.remote.refreshFolder(s)
     }
     Page {
@@ -99,13 +103,23 @@ fun LibraryScreen(nav: Nav, app: App) {
                     Small(stringResource(R.string.library_hint), Modifier.padding(horizontal = rowPadH).padding(top = 16.dp, bottom = 4.dp), maxLines = 12)
                     LibraryAccountRows(s) { prompt = it }
                     Rule(Modifier.padding(vertical = 8.dp))
-                    CredentialsRows(app, s)
+                    CredentialsRows(app, s, export)
                 }
             } else {
-                val folders = remember(index) { app.remote.folders() }
+                val folders = remember(index, s.libraryFolders) { app.remote.folders(s) }
+                val shown = remember(index, s.libraryFolders) { app.remote.shown(s) }
+                val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
-                    progress?.let { p -> item { Small(stringResource(R.string.scanning, p.folders, p.books), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 2) } }
+                    // the sync, by hand, with where it is or when it last ran
+                    item {
+                        val state = progress?.let { p -> stringResource(R.string.scanning, p.folders, p.books) } ?: if (index.scannedAt > 0L) stringResource(R.string.scanned_at, dateLabel(index.scannedAt)) else null
+                        TextRow(stringResource(R.string.sync_now), secondary = state) { if (progress == null) scan(false) }
+                    }
                     error?.let { e -> item { Small(errorText(e), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
+                    // once the drive was walked: keep only some of its folders?
+                    if (progress == null && index.complete && index.scannedAt > 0L && !s.libraryFoldersAsked && s.libraryFolders.isEmpty() && known.size > 1) item {
+                        TextRow(stringResource(R.string.folders_offer), secondary = stringResource(R.string.folders_offer_hint, known.size)) { app.prefs.setLibraryFoldersAsked(); nav.push(Screen.LibraryFolders) }
+                    }
                     if (progress == null && !index.complete && index.scannedAt > 0L) item {
                         TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.scan_interrupted, index.folders, index.books.size)) { scan(false) }
                     }
@@ -113,11 +127,10 @@ fun LibraryScreen(nav: Nav, app: App) {
                         TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.folders_unread, index.failed.size)) { scan(false) }
                     }
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
-                    if (index.books.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, index.books.size, index.books.size)) { nav.push(Screen.AllBooks) } }
+                    if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, shown.size, shown.size)) { nav.push(Screen.AllBooks) } }
                     items(folders, key = { it.path }) { f ->
                         TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = listOf(pluralStringResource(R.plurals.n_books, f.count, f.count)).joinToString()) { nav.push(Screen.Folder(f.path)) }
                     }
-                    if (index.scannedAt > 0L && progress == null && index.complete) item { Small(stringResource(R.string.scanned_at, dateLabel(index.scannedAt)), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 1) }
                 }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
@@ -125,9 +138,11 @@ fun LibraryScreen(nav: Nav, app: App) {
         if (menu) TextMenu(null, listOfNotNull(
             if (progress == null && (!index.complete || index.failed.isNotEmpty())) MenuItem(stringResource(R.string.continue_scan)) { scan(false) } else null,
             if (progress == null) MenuItem(stringResource(R.string.scan_again)) { scan(true) } else MenuItem(stringResource(R.string.stop_scan)) { app.remote.cancel() },
+            MenuItem(stringResource(R.string.library_folders)) { nav.push(Screen.LibraryFolders) },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ), onDismiss = { menu = false })
         LibraryAccountPrompt(app, s, prompt) { prompt = null }
+        CredentialsExportMenu(export)
     }
 }
 
@@ -164,8 +179,8 @@ fun AllBooksScreen(nav: Nav, app: App) {
     val shelf by app.library.books.collectAsState()
     // when each book was last opened here, by its reference on the drive
     val opened = remember(shelf) { shelf.filter { it.source != null }.associate { it.source!! to maxOf(it.opened, it.added) } }
-    val books = remember(index, opened, s.allBooksSort) {
-        val b = index.books
+    val books = remember(index, opened, s.allBooksSort, s.libraryFolders) {
+        val b = app.remote.shown(s)
         when (s.allBooksSort) {
             AllBooksSort.NEWEST -> b.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
             AllBooksSort.NAME -> b.sortedBy { it.name.lowercase() }
@@ -239,6 +254,43 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
     }
 }
 
+/**
+ * The folders of the drive that make the library: every folder seen to hold books, the chosen
+ * ones inverted along with what is inside them; a tap chooses or un-chooses. Left changed, the
+ * library syncs quietly, so folders taken back in are read again.
+ */
+@Composable
+fun LibraryFoldersScreen(nav: Nav, app: App) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
+    val chosen = s.libraryFolders
+    val before = remember { s.libraryFolders }
+    val rootFolder = stringResource(R.string.root_folder)
+    fun leave() { if (s.libraryFolders != before) app.remote.syncQuietly(s); nav.pop() }
+    BackHandler { leave() }
+    Page {
+        Column(Modifier.fillMaxSize()) {
+            ScreenTitle(stringResource(R.string.library_folders), onBack = { leave() })
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
+                item { Small(stringResource(R.string.library_folders_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 10) }
+                item { TextRow(stringResource(R.string.whole_drive), inverted = chosen.isEmpty()) { if (chosen.isNotEmpty()) app.prefs.setLibraryFolders(emptyList()) } }
+                items(known, key = { it.path }) { f ->
+                    val isChosen = f.path in chosen
+                    val part = Folders.partOf(chosen, f.path)
+                    val count = pluralStringResource(R.plurals.n_books, f.count, f.count)
+                    TextRow(f.path, inverted = chosen.isNotEmpty() && Folders.inLibrary(chosen, f.path),
+                        secondary = part?.let { count + " · " + stringResource(R.string.in_folder, it.ifEmpty { rootFolder }) } ?: count) {
+                        if (isChosen) app.prefs.setLibraryFolders(chosen - f.path)
+                        else if (part == null) app.prefs.setLibraryFolders(chosen + f.path)
+                    }
+                }
+            }
+            Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Account rows, shared by the library's first screen and the settings.
 // ---------------------------------------------------------------------------------------------
@@ -285,9 +337,26 @@ fun LibraryAccountPrompt(app: App, s: Settings, field: String?, onClose: () -> U
     }, onCancel = onClose)
 }
 
+/** The export's state, held by the page: the share menu must lie over the whole page, not inside its scrolling rows. */
+class CredentialsExport { var saved by mutableStateOf(false) }
+
+@Composable
+fun rememberCredentialsExport() = remember { CredentialsExport() }
+
+/** After a save: "saved as …", with the share menu one tap away. */
+@Composable
+fun CredentialsExportMenu(export: CredentialsExport) {
+    if (!export.saved) return
+    val context = LocalContext.current
+    val shareTitle = stringResource(R.string.share_export)
+    TextMenu(stringResource(R.string.export_saved, Credentials.FILE_NAME), listOf(MenuItem(shareTitle) {
+        CredentialsShare.share(context, Credentials.FILE_NAME, "application/json", shareTitle)
+    }), onDismiss = { export.saved = false })
+}
+
 /** Export (when something is set) and import of the Reader's credentials file. */
 @Composable
-fun CredentialsRows(app: App, s: Settings) {
+fun CredentialsRows(app: App, s: Settings, export: CredentialsExport) {
     val context = LocalContext.current
     var message by remember { mutableStateOf("") }
     val notCredentials = stringResource(R.string.credentials_not_a_file)
@@ -311,9 +380,14 @@ fun CredentialsRows(app: App, s: Settings) {
         } catch (e: Credentials.NothingForUs) { nothingForUs
         } catch (e: Exception) { e.message?.let { context.getString(R.string.credentials_unreadable, it) } ?: notCredentials }
     }
-    val shareTitle = stringResource(R.string.export_credentials)
-    if (s.libraryStarted) TextRow(shareTitle, secondary = stringResource(R.string.export_credentials_hint)) {
-        CredentialsShare.share(context, Credentials.build(s.url, s.username, s.password, Credentials.Notes(s.notesUrl, s.notesUsername, s.notesPassword)), shareTitle)
+    // the export: saved where the person chooses, then offered to the share menu
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val cur = app.prefs.settings.value
+        export.saved = CredentialsShare.save(context, uri, Credentials.FILE_NAME, Credentials.build(cur.url, cur.username, cur.password, Credentials.Notes(cur.notesUrl, cur.notesUsername, cur.notesPassword)))
+    }
+    if (s.libraryStarted) TextRow(stringResource(R.string.export_credentials), secondary = stringResource(R.string.export_credentials_hint)) {
+        runCatching { save.launch(Credentials.FILE_NAME) }
     }
     TextRow(stringResource(R.string.import_credentials), secondary = message.ifBlank { null }) {
         message = ""
