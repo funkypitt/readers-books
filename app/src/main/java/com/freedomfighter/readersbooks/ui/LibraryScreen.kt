@@ -36,7 +36,11 @@ import com.freedomfighter.readersbooks.data.Credentials
 import com.freedomfighter.readersbooks.data.CredentialsShare
 import com.freedomfighter.readersbooks.data.LibrarySort
 import com.freedomfighter.readersbooks.data.Settings
+import com.freedomfighter.readersbooks.books.BookFormat
+import com.freedomfighter.readersbooks.books.Entry
+import com.freedomfighter.readersbooks.remote.BOOK_EXTENSIONS
 import com.freedomfighter.readersbooks.remote.Folders
+import com.freedomfighter.readersbooks.remote.TRANSCRIPTS_FOLDER
 import com.freedomfighter.readersbooks.remote.RemoteBook
 import com.freedomfighter.readersbooks.remote.Unauthorized
 import kotlinx.coroutines.Dispatchers
@@ -284,6 +288,82 @@ fun LibraryFoldersScreen(nav: Nav, app: App) {
                         if (isChosen) app.prefs.setLibraryFolders(chosen - f.path)
                         else if (part == null) app.prefs.setLibraryFolders(chosen + f.path)
                     }
+                }
+            }
+            Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// A book of the shelf sent to the drive, to be a book of the library from then on.
+// ---------------------------------------------------------------------------------------------
+
+/** A book of the shelf may be sent when there is a library, it is not from it, and a sync of the drive would list its kind (not plain text). */
+fun canSend(s: Settings, e: Entry): Boolean =
+    s.libraryConfigured && e.format != BookFormat.TXT && e.source?.let { it.startsWith("http://") || it.startsWith("https://") } != true
+
+/** The file name a book goes to the drive under: the one it was opened with when it was a book's, else its title, with the format's extension. */
+fun sendName(e: Entry): String {
+    val kept = e.sourceName?.takeIf { it.substringAfterLast('.', "").lowercase() in BOOK_EXTENSIONS }
+    val ext = kept?.substringAfterLast('.') ?: e.format.name.lowercase()
+    val stem = (kept?.substringBeforeLast('.') ?: e.title).replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), " ").trim().replace(Regex("\\s+"), " ").take(120).ifEmpty { "book" }
+    return "$stem.$ext"
+}
+
+/**
+ * Where in the library a book of the shelf goes: the folders of the drive that hold books (those
+ * of the library, when only some folders make it), the one used last time first. A tap sends the
+ * book there; it then stands on the shelf as a book of the library, and the drive's listing says so at once.
+ */
+@Composable
+fun SendToLibraryScreen(nav: Nav, app: App, id: String) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val books by app.library.books.collectAsState()
+    val entry = books.firstOrNull { it.id == id }
+    val scope = rememberCoroutineScope()
+    var sending by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf<Throwable?>(null) }
+    var done by remember { mutableStateOf<String?>(null) }      // the folder the book went to
+    val rootFolder = stringResource(R.string.root_folder)
+    val lastTime = stringResource(R.string.last_time)
+    val counts = remember(index) { app.remote.knownFolders().associate { it.path to it.count } }
+    val folders = remember(index, s.libraryFolders, s.sendFolder) {
+        (counts.keys + s.libraryFolders + "")
+            .filter { Folders.inLibrary(s.libraryFolders, it) && !Folders.under(TRANSCRIPTS_FOLDER, it) }
+            .distinct().sortedWith(compareBy({ it != s.sendFolder }, { it.lowercase() }))
+    }
+    BackHandler { nav.pop() }
+    if (entry == null) { nav.pop(); return }
+    fun send(folder: String) {
+        if (sending || done != null) return
+        sending = true; failed = null
+        scope.launch {
+            val r = runCatching { withContext(Dispatchers.IO) { app.remote.send(s, folder, sendName(entry), app.library.file(entry)) } }
+            sending = false
+            r.onSuccess { b ->
+                app.library.link(entry.id, b.ref, b.name)
+                app.prefs.setSendFolder(folder)
+                // the page it is at goes next to it right away, for the other devices
+                app.highlights.place(entry.id)
+                done = folder
+            }
+            r.onFailure { failed = it }
+        }
+    }
+    Page {
+        Column(Modifier.fillMaxSize()) {
+            ScreenTitle(stringResource(R.string.send_to_library), onBack = { nav.pop() })
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
+                item { T(entry.title, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp), size = LocalTypo.current.title, maxLines = 2) }
+                done?.let { f -> item { Small(stringResource(R.string.sent_to_library, entry.title, f.ifEmpty { rootFolder }), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 6) } }
+                if (done == null) item { Small(stringResource(R.string.send_to_library_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 12) }
+                if (sending) item { Small(stringResource(R.string.sending_book), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 1) }
+                failed?.let { e -> item { Small(if (e is Unauthorized) stringResource(R.string.wrong_login) else stringResource(R.string.send_failed, e.message ?: e.javaClass.simpleName), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
+                if (done == null) items(folders, key = { it }) { f ->
+                    val count = counts[f]?.let { pluralStringResource(R.plurals.n_books, it, it) }
+                    TextRow(f.ifEmpty { rootFolder }, secondary = listOfNotNull(count, if (f == s.sendFolder) lastTime else null).joinToString(" · ").ifEmpty { null }) { send(f) }
                 }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))

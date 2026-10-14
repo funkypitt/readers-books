@@ -27,6 +27,9 @@ network is used only if you set up a library on your own drive. It extends the b
   last read, on whichever device, and the shelf says how far it is.
 * Add a book from the shelf, from a file manager ("open with"), or by sharing the file to the
   app. Books are copied into the app, so the original can move.
+* A book opened that way can join the library: "add to the library" in its menu copies it to
+  the drive, into the folder you choose (nothing there is written over), and from then on its
+  highlights and the page you are at travel like those of any book of the library.
 * The position is kept per book and survives a change of text size or screen. The screen
   stays on while a page is open, until fifteen minutes after the last turn.
 * Pictures in EPUBs are shown in the page, scaled to the text width and never cut; styles and

@@ -68,6 +68,13 @@
     <string name="downloading">descargando…</string>
     <string name="on_shelf">en la estantería</string>
     <string name="download_failed">no se pudo obtener el libro: %1$s</string>
+    <!-- a book of the shelf sent to the drive -->
+    <string name="send_to_library">añadir a la biblioteca</string>
+    <string name="send_to_library_hint">El libro se copia al drive, en la carpeta que elija, y pasa a ser un libro de la biblioteca: sus resaltados y la página en la que está se guardan entonces junto a él y le siguen a sus otros dispositivos. Nada del drive se sobrescribe.</string>
+    <string name="sending_book">enviando…</string>
+    <string name="sent_to_library">«%1$s» está ahora en la biblioteca, en %2$s.</string>
+    <string name="send_failed">no se pudo enviar el libro: %1$s</string>
+    <string name="last_time">la última vez</string>
     <string name="library_error">no se pudo leer el drive: %1$s</string>
     <string name="wrong_login">el drive rechazó el inicio de sesión</string>
     <string name="forget_library">olvidar la biblioteca</string>

@@ -70,6 +70,13 @@
     <string name="downloading">downloading…</string>
     <string name="on_shelf">on the shelf</string>
     <string name="download_failed">the book could not be fetched: %1$s</string>
+    <!-- a book of the shelf sent to the drive -->
+    <string name="send_to_library">add to the library</string>
+    <string name="send_to_library_hint">The book is copied to the drive, into the folder you choose, and becomes a book of the library: its highlights and the page you are at are then kept next to it and follow it to your other devices. Nothing on the drive is written over.</string>
+    <string name="sending_book">sending…</string>
+    <string name="sent_to_library">“%1$s” is now in the library, in %2$s.</string>
+    <string name="send_failed">the book could not be sent: %1$s</string>
+    <string name="last_time">last time</string>
     <string name="library_error">the drive could not be read: %1$s</string>
     <string name="wrong_login">the drive refused the login</string>
     <string name="forget_library">forget the library</string>

@@ -68,6 +68,13 @@
     <string name="downloading">wird heruntergeladen…</string>
     <string name="on_shelf">im Regal</string>
     <string name="download_failed">das Buch konnte nicht geholt werden: %1$s</string>
+    <!-- a book of the shelf sent to the drive -->
+    <string name="send_to_library">zur Bibliothek hinzufügen</string>
+    <string name="send_to_library_hint">Das Buch wird in den gewählten Ordner des Drives kopiert und wird ein Buch der Bibliothek: seine Markierungen und die Seite, auf der Sie sind, werden dann neben ihm abgelegt und folgen ihm auf Ihre anderen Geräte. Nichts auf dem Drive wird überschrieben.</string>
+    <string name="sending_book">wird gesendet…</string>
+    <string name="sent_to_library">„%1$s“ ist jetzt in der Bibliothek, in %2$s.</string>
+    <string name="send_failed">das Buch konnte nicht gesendet werden: %1$s</string>
+    <string name="last_time">letztes Mal</string>
     <string name="library_error">das Drive konnte nicht gelesen werden: %1$s</string>
     <string name="wrong_login">das Drive hat die Anmeldung abgelehnt</string>
     <string name="forget_library">Bibliothek vergessen</string>

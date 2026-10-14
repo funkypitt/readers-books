@@ -125,6 +125,7 @@ fun BookScreen(nav: Nav, app: App, id: String) {
                     add(MenuItem(stringResource(R.string.smaller_text), "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) })
                     add(MenuItem(stringResource(R.string.book_text), stringResource(if (settings.bookSerif) R.string.font_serif else R.string.font_sans) + " → " + stringResource(if (settings.bookSerif) R.string.font_sans else R.string.font_serif)) { app.prefs.setBookSerif(!settings.bookSerif) })
                     add(MenuItem(stringResource(R.string.remove)) { app.library.remove(id); nav.pop() })
+                    if (canSend(settings, entry)) add(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(id)) })
                     if (highlighted) add(MenuItem(stringResource(R.string.export_highlights)) {
                         runCatching {
                             context.startActivity(android.content.Intent.createChooser(

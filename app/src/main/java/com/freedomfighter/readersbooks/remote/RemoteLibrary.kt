@@ -288,4 +288,30 @@ class RemoteLibrary(private val context: Context) {
         remote.download(book, tmp)
         return tmp
     }
+
+    /**
+     * A book of the shelf sent to the drive, into this folder of the library, under this file
+     * name — or the next free one, when a file of that name is there already: nothing on the
+     * drive is ever written over. Listed in the library at once, as the drive names it, with no
+     * sync to wait for. Blocking network; call off the main thread.
+     */
+    suspend fun send(s: Settings, folder: String, name: String, file: File): RemoteBook {
+        val remote = remote(s) ?: throw IllegalStateException("no library")
+        val stem = name.substringBeforeLast('.'); val ext = name.substringAfterLast('.', "")
+        var chosen = name
+        for (n in 2..20) {
+            if (!remote.exists(remote.fileRef(folder, chosen))) break
+            chosen = "$stem ($n)" + (if (ext.isEmpty()) "" else ".$ext")
+        }
+        val ref = remote.fileRef(folder, chosen)
+        remote.upload(ref, file)
+        // the drive's own listing of the folder, so the book is known by the address a sync would give it
+        val listed = runCatching { remote.list(remote.folderRef(folder)).books.firstOrNull { it.name == chosen } }.getOrNull()
+        val book = listed ?: RemoteBook(chosen, folder, ref, file.length(), System.currentTimeMillis())
+        if (matches(s) || _index.value.scannedAt == 0L) {
+            val idx = _index.value
+            save(idx.copy(source = sourceKey(s), books = idx.books.filter { it.ref != book.ref && !(it.folder == folder && it.name == chosen) } + book))
+        }
+        return book
+    }
 }

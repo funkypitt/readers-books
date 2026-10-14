@@ -38,7 +38,9 @@ data class Settings(
     /** The folders of the drive that make the library (paths below its top); empty = the whole drive. */
     val libraryFolders: List<String> = emptyList(),
     /** The choice of folders was offered once the drive was first walked. */
-    val libraryFoldersAsked: Boolean = false
+    val libraryFoldersAsked: Boolean = false,
+    /** The folder of the drive a book of the shelf was last sent to; null when none was yet. */
+    val sendFolder: String? = null
 ) {
     /** An address with a login: that is what reaches the library. */
     val libraryConfigured: Boolean get() = url.isNotBlank() && username.isNotBlank() && password.isNotEmpty()
@@ -72,7 +74,8 @@ class Prefs(context: Context) {
         librarySort = enumOr(sp.getString("library_sort", null), LibrarySort.NAME),
         allBooksSort = enumOr(sp.getString("all_books_sort", null), AllBooksSort.NEWEST),
         libraryFolders = (sp.getStringSet("library_folders", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
-        libraryFoldersAsked = sp.getBoolean("library_folders_asked", false)
+        libraryFoldersAsked = sp.getBoolean("library_folders_asked", false),
+        sendFolder = sp.getString("send_folder", null)
     )
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =
         name?.let { runCatching { enumValueOf<E>(it) }.getOrNull() } ?: default
@@ -89,11 +92,12 @@ class Prefs(context: Context) {
     fun setAllBooksSort(v: AllBooksSort) = sp.edit().putString("all_books_sort", v.name).apply()
     /** The folders that make the library; chosen, the choice is no longer to be offered. */
     fun setLibraryFolders(folders: List<String>) = sp.edit().putStringSet("library_folders", folders.filter { it.isNotEmpty() }.toSet()).putBoolean("library_folders_asked", true).apply()
+    fun setSendFolder(folder: String) = sp.edit().putString("send_folder", folder).apply()
     fun setLibraryFoldersAsked() = sp.edit().putBoolean("library_folders_asked", true).apply()
     /** The library account; the password is kept encrypted. Blank keys are kept as they are by the import, cleared here. Another drive: its folders are not these. */
     fun setLibrary(url: String, username: String, password: String) = sp.edit()
         .remove("library_share")
-        .apply { if (url.trim() != _settings.value.url) remove("library_folders").remove("library_folders_asked") }
+        .apply { if (url.trim() != _settings.value.url) remove("library_folders").remove("library_folders_asked").remove("send_folder") }
         .putString("library_url", url.trim())
         .putString("library_username", username.trim())
         .putString("library_password", runCatching { Secret.encrypt(password) }.getOrDefault(""))

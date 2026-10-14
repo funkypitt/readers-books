@@ -68,6 +68,13 @@
     <string name="downloading">загрузка…</string>
     <string name="on_shelf">на полке</string>
     <string name="download_failed">не удалось получить книгу: %1$s</string>
+    <!-- a book of the shelf sent to the drive -->
+    <string name="send_to_library">добавить в библиотеку</string>
+    <string name="send_to_library_hint">Книга копируется на диск, в выбранную папку, и становится книгой библиотеки: её выделения и страница, на которой вы остановились, хранятся рядом с ней и следуют за ней на ваши другие устройства. Ничего на диске не перезаписывается.</string>
+    <string name="sending_book">отправка…</string>
+    <string name="sent_to_library">«%1$s» теперь в библиотеке, в папке %2$s.</string>
+    <string name="send_failed">не удалось отправить книгу: %1$s</string>
+    <string name="last_time">в прошлый раз</string>
     <string name="library_error">не удалось прочитать диск: %1$s</string>
     <string name="wrong_login">диск отклонил вход</string>
     <string name="forget_library">забыть библиотеку</string>

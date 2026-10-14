@@ -26,7 +26,10 @@ data class Entry(
     val magazine: Boolean = false,
     /** Where the library fetched it from (its reference on the drive), so the shelf copy is found again. */
     val source: String? = null,
-    /** The name of its file on the drive, which is the name its highlights and its note go by. */
+    /**
+     * The name of its file: on the drive, for a book of the library (the name its highlights and
+     * its note go by), else as it was when it was opened, for the day it is sent to the library.
+     */
     val sourceName: String? = null
 )
 
@@ -67,6 +70,9 @@ class Library(private val context: Context) {
         l.map { if (it.id == id) it.copy(chapter = chapter, charOffset = charOffset, progress = progress, opened = at) else it }
     }
 
+    /** A book of the shelf that was just sent to the drive: from now on a book of the library, by that address and that file name. */
+    fun link(id: String, source: String, sourceName: String) = update { l -> l.map { if (it.id == id) it.copy(source = source, sourceName = sourceName) else it } }
+
     fun touch(id: String) = update { l -> l.map { if (it.id == id) it.copy(opened = System.currentTimeMillis()) else it } }
 
     fun remove(id: String) = update { l ->
@@ -99,7 +105,7 @@ class Library(private val context: Context) {
         cache[fileName] = book
         // the same book again replaces the old copy but keeps its place
         val same = _books.value.firstOrNull { it.title == book.title && it.format == format }
-        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0, magazine = book.magazine != null, source = source ?: same?.source, sourceName = if (source != null) displayName else same?.sourceName)
+        val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0, magazine = book.magazine != null, source = source ?: same?.source, sourceName = if (source != null || same?.source == null) displayName else same.sourceName)
         update { l -> l.filter { it.id != same?.id }.also { same?.let { s -> File(dir, s.fileName).delete() } } + entry }
         entry
     }

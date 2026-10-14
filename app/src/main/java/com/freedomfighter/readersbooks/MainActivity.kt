@@ -18,6 +18,7 @@ import com.freedomfighter.readersbooks.ui.AllBooksScreen
 import com.freedomfighter.readersbooks.ui.BookChaptersScreen
 import com.freedomfighter.readersbooks.ui.BookScreen
 import com.freedomfighter.readersbooks.ui.FolderScreen
+import com.freedomfighter.readersbooks.ui.SendToLibraryScreen
 import com.freedomfighter.readersbooks.ui.LibraryFoldersScreen
 import com.freedomfighter.readersbooks.ui.LibraryScreen
 import com.freedomfighter.readersbooks.ui.LocalColors
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     Screen.LibraryFolders -> LibraryFoldersScreen(nav, app)
                     is Screen.Folder -> FolderScreen(nav, app, s.path)
                     Screen.AllBooks -> AllBooksScreen(nav, app)
+                    is Screen.SendToLibrary -> SendToLibraryScreen(nav, app, s.id)
                 }
             }
         }

@@ -54,6 +54,8 @@ sealed class Screen {
     data object LibraryFolders : Screen()
     data class Folder(val path: String) : Screen()
     data object AllBooks : Screen()
+    /** Choosing the folder of the library a book of the shelf is sent to. */
+    data class SendToLibrary(val id: String) : Screen()
 }
 
 class Nav {
@@ -133,7 +135,7 @@ fun ShelfScreen(nav: Nav, app: App) {
                 MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) },
                 MenuItem(stringResource(if (b.magazine) R.string.contents else R.string.chapters)) { nav.push(Screen.Chapters(b.id)) },
                 MenuItem(stringResource(R.string.remove)) { app.library.remove(b.id) }
-            ), onDismiss = { bookMenu = null })
+            ) + (if (canSend(settings, b)) listOf(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(b.id)) }) else emptyList()), onDismiss = { bookMenu = null })
         }
     }
 }

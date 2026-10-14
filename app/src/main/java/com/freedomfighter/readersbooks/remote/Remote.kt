@@ -14,6 +14,7 @@ import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
@@ -65,6 +66,12 @@ interface Remote {
     suspend fun listAll(): List<RemoteBook>? = null
     suspend fun list(folder: String): Listing
     suspend fun download(book: RemoteBook, dest: File)
+    /** The address of a file named `name` in the folder at this path below the top of the drive. */
+    fun fileRef(folder: String, name: String): String
+    /** Whether something is at this address. */
+    suspend fun exists(ref: String): Boolean
+    /** Put a file on the drive at this address, in place of whatever was there. */
+    suspend fun upload(ref: String, file: File)
     /** The reference of a folder named by its path below the top of the drive ("" = the top). */
     fun folderRef(path: String): String
     /** The path below the top of the drive of a folder's reference, decoded. */
@@ -99,6 +106,8 @@ class WebDav(url: String, private val username: String, private val password: St
 
     override fun folderRef(path: String): String =
         base + path.split('/').filter { it.isNotEmpty() }.joinToString("") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") + "/" }
+
+    override fun fileRef(folder: String, name: String): String = folderRef(folder) + java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20")
 
     override fun folderPath(ref: String): String = relative(ref).split('/').filter { it.isNotEmpty() }.joinToString("/") { it.decoded() }
 
@@ -185,6 +194,22 @@ class WebDav(url: String, private val username: String, private val password: St
                 check(r.code)
                 r.body?.byteStream()?.use { input -> dest.outputStream().use { input.copyTo(it) } } ?: throw IOException("empty answer")
             }
+        }
+    }
+
+    override suspend fun exists(ref: String): Boolean = withContext(Dispatchers.IO) {
+        http.newCall(Request.Builder().url(ref).head().header("Authorization", auth).build()).execute().use { r ->
+            if (r.code == 404) return@withContext false
+            check(r.code); true
+        }
+    }
+
+    /** A book may be large and the line slow: the upload gets ten minutes. */
+    override suspend fun upload(ref: String, file: File) {
+        withContext(Dispatchers.IO) {
+            val client = http.newBuilder().writeTimeout(10, TimeUnit.MINUTES).build()
+            val req = Request.Builder().url(ref).put(file.asRequestBody("application/octet-stream".toMediaType())).header("Authorization", auth).build()
+            client.newCall(req).execute().use { check(it.code) }
         }
     }
 }

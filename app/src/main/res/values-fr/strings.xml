@@ -68,6 +68,13 @@
     <string name="downloading">téléchargement…</string>
     <string name="on_shelf">sur l\'étagère</string>
     <string name="download_failed">le livre n\'a pas pu être récupéré : %1$s</string>
+    <!-- a book of the shelf sent to the drive -->
+    <string name="send_to_library">ajouter à la bibliothèque</string>
+    <string name="send_to_library_hint">Le livre est copié sur le drive, dans le dossier que vous choisissez, et devient un livre de la bibliothèque : ses surlignages et la page où vous en êtes sont alors gardés à côté de lui et le suivent sur vos autres appareils. Rien n\'est écrasé sur le drive.</string>
+    <string name="sending_book">envoi…</string>
+    <string name="sent_to_library">« %1$s » est maintenant dans la bibliothèque, dans %2$s.</string>
+    <string name="send_failed">le livre n\'a pas pu être envoyé : %1$s</string>
+    <string name="last_time">la dernière fois</string>
     <string name="library_error">le drive n\'a pas pu être lu : %1$s</string>
     <string name="wrong_login">le drive a refusé l\'identification</string>
     <string name="forget_library">oublier la bibliothèque</string>
