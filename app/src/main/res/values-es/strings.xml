@@ -45,7 +45,11 @@
     <string name="password">contraseña</string>
     <string name="sync_now">sincronizar ahora</string>
     <string name="library_folders">carpetas de la biblioteca</string>
-    <string name="library_folders_hint">Todo el drive está en la biblioteca. Elija carpetas para quedarse solo con esas, con todo lo que contienen: la biblioteca se sincroniza entonces más rápido. Las transcripciones de Reader\'s Podcasts se quedan en todo caso.</string>
+    <string name="library_folders_hint">Todo el drive está en la biblioteca. Elija carpetas para quedarse solo con esas, con todo lo que contienen: la biblioteca se sincroniza entonces más rápido. Mantenga pulsada una carpeta para dejarla fuera: entonces ni se muestra ni se sincroniza, sea cual sea el resto de la elección. Las transcripciones de Reader\'s Podcasts se quedan, salvo si se dejan fuera.</string>
+    <string name="left_out">dejada fuera</string>
+    <string name="leave_out">dejar fuera esta carpeta</string>
+    <string name="leave_out_hint">con todo lo que contiene: ni mostrada, ni sincronizada</string>
+    <string name="take_back">volver a incluir esta carpeta</string>
     <string name="whole_drive">todo el drive</string>
     <string name="in_folder">en %1$s</string>
     <string name="folders_offer">¿quedarse solo con algunas carpetas?</string>
@@ -93,6 +97,10 @@
     <string name="stop_scan">detener el recorrido</string>
     <string name="notif_channel">recorrido de la biblioteca</string>
     <string name="notif_scanning">recorriendo el drive</string>
+    <plurals name="n_folders_left_out">
+        <item quantity="one">%d carpeta dejada fuera</item>
+        <item quantity="other">%d carpetas dejadas fuera</item>
+    </plurals>
     <plurals name="n_folders_chosen">
         <item quantity="one">%d carpeta elegida</item>
         <item quantity="many">%d carpetas elegidas</item>

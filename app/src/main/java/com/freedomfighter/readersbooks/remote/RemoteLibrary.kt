@@ -77,6 +77,7 @@ class RemoteLibrary(private val context: Context) {
     private var job: Job? = null
     private var requested: Pair<Settings, Boolean>? = null
     private var chosen: List<String> = emptyList()
+    private var excluded: List<String> = emptyList()
 
     /** Null when nothing usable is set. */
     fun remote(s: Settings): Remote? = runCatching {
@@ -90,8 +91,8 @@ class RemoteLibrary(private val context: Context) {
 
     val scanning: Boolean get() = job?.isActive == true
 
-    /** The books in the library: those of the chosen folders, or all of them. */
-    fun shown(s: Settings): List<RemoteBook> = _index.value.books.filter { Folders.inLibrary(s.libraryFolders, it.folder) }
+    /** The books in the library: those of the chosen folders, or all of them, less the folders left out. */
+    fun shown(s: Settings): List<RemoteBook> = _index.value.books.filter { Folders.inLibrary(s.libraryFolders, it.folder, s.libraryExcluded) }
 
     fun folders(s: Settings): List<Folder> = shown(s).groupBy { it.folder }.map { (p, b) -> Folder(p, b.size) }.sortedWith(compareBy({ it.path.lowercase() }))
 
@@ -129,6 +130,7 @@ class RemoteLibrary(private val context: Context) {
         val remote = remote(s) ?: return null
         _error.value = null
         chosen = s.libraryFolders
+        excluded = s.libraryExcluded
         val idx = _index.value
         // from scratch; or an unfinished walk carried on; or the whole library walked again
         val start = if (fresh) Index(source = sourceKey(s), complete = false)
@@ -186,7 +188,8 @@ class RemoteLibrary(private val context: Context) {
                     lock.withLock {
                         inFlight -= f
                         r.onSuccess {
-                            queue += it.folders; folders++
+                            // a folder left out is not walked; its books stay known, so it can be taken back
+                            queue += it.folders.filter { d -> !Folders.leftOut(excluded, remote.folderPath(d)) }; folders++
                             val merged = Folders.merge(books, remote.folderPath(f), it.folders.map { d -> remote.folderPath(d) }, it.books)
                             books.clear(); books += merged
                         }
@@ -248,7 +251,7 @@ class RemoteLibrary(private val context: Context) {
      */
     fun refreshFolder(s: Settings, name: String = TRANSCRIPTS_FOLDER) {
         val remote = remote(s) ?: return
-        if (scanning || refreshing || !matches(s) || !_index.value.complete) return
+        if (scanning || refreshing || !matches(s) || !_index.value.complete || Folders.leftOut(s.libraryExcluded, name)) return
         refreshing = true
         val source = _index.value.source
         scope.launch {

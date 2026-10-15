@@ -114,6 +114,7 @@ fun TextRow(
     inverted: Boolean = false,
     secondary: String? = null,
     size: TextUnit = LocalTypo.current.tile,
+    onLongPress: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
     val colors = LocalColors.current
@@ -124,7 +125,8 @@ fun TextRow(
         modifier
             .fillMaxWidth()
             .background(bg)
-            .then(if (onClick != null) Modifier.noRippleClickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null && onLongPress != null) Modifier.pressable(onClick = onClick, onLongPress = onLongPress)
+                else if (onClick != null) Modifier.noRippleClickable(onClick = onClick) else Modifier)
             .padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)
     ) {
         T(text, size = size, color = fg, maxLines = 1)

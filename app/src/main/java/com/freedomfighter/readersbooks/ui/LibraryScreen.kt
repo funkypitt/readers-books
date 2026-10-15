@@ -78,6 +78,7 @@ fun LibraryScreen(nav: Nav, app: App) {
     val progress by app.remote.progress.collectAsState()
     val error by app.remote.error.collectAsState()
     var menu by remember { mutableStateOf(false) }
+    var folderMenu by remember { mutableStateOf<String?>(null) }
     var prompt by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val export = rememberCredentialsExport()
@@ -110,8 +111,8 @@ fun LibraryScreen(nav: Nav, app: App) {
                     CredentialsRows(app, s, export)
                 }
             } else {
-                val folders = remember(index, s.libraryFolders) { app.remote.folders(s) }
-                val shown = remember(index, s.libraryFolders) { app.remote.shown(s) }
+                val folders = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.folders(s) }
+                val shown = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.shown(s) }
                 val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
                     // the sync, by hand, with where it is or when it last ran
@@ -133,11 +134,16 @@ fun LibraryScreen(nav: Nav, app: App) {
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                     if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, shown.size, shown.size)) { nav.push(Screen.AllBooks) } }
                     items(folders, key = { it.path }) { f ->
-                        TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = listOf(pluralStringResource(R.plurals.n_books, f.count, f.count)).joinToString()) { nav.push(Screen.Folder(f.path)) }
+                        TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = listOf(pluralStringResource(R.plurals.n_books, f.count, f.count)).joinToString(),
+                            onLongPress = if (f.path.isNotEmpty()) ({ folderMenu = f.path }) else null) { nav.push(Screen.Folder(f.path)) }
                     }
                 }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+        // a folder held long: left out of the library, with everything inside it
+        folderMenu?.let { path ->
+            TextMenu(path, listOf(MenuItem(stringResource(R.string.leave_out), secondary = stringResource(R.string.leave_out_hint)) { app.prefs.setLibraryExcluded(s.libraryExcluded + path); folderMenu = null }), onDismiss = { folderMenu = null })
         }
         if (menu) TextMenu(null, listOfNotNull(
             if (progress == null && (!index.complete || index.failed.isNotEmpty())) MenuItem(stringResource(R.string.continue_scan)) { scan(false) } else null,
@@ -183,7 +189,7 @@ fun AllBooksScreen(nav: Nav, app: App) {
     val shelf by app.library.books.collectAsState()
     // when each book was last opened here, by its reference on the drive
     val opened = remember(shelf) { shelf.filter { it.source != null }.associate { it.source!! to maxOf(it.opened, it.added) } }
-    val books = remember(index, opened, s.allBooksSort, s.libraryFolders) {
+    val books = remember(index, opened, s.allBooksSort, s.libraryFolders, s.libraryExcluded) {
         val b = app.remote.shown(s)
         when (s.allBooksSort) {
             AllBooksSort.NEWEST -> b.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
@@ -260,8 +266,9 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
 
 /**
  * The folders of the drive that make the library: every folder seen to hold books, the chosen
- * ones inverted along with what is inside them; a tap chooses or un-chooses. Left changed, the
- * library syncs quietly, so folders taken back in are read again.
+ * ones inverted along with what is inside them; a tap chooses or un-chooses. Held long, a folder
+ * is left out (or taken back in): out with everything inside it, whatever is chosen, and skipped
+ * by the syncs. Left changed, the library syncs quietly, so folders taken back in are read again.
  */
 @Composable
 fun LibraryFoldersScreen(nav: Nav, app: App) {
@@ -269,9 +276,12 @@ fun LibraryFoldersScreen(nav: Nav, app: App) {
     val index by app.remote.index.collectAsState()
     val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
     val chosen = s.libraryFolders
-    val before = remember { s.libraryFolders }
+    val excluded = s.libraryExcluded
+    val before = remember { s.libraryFolders to s.libraryExcluded }
+    var folderMenu by remember { mutableStateOf<String?>(null) }
     val rootFolder = stringResource(R.string.root_folder)
-    fun leave() { if (s.libraryFolders != before) app.remote.syncQuietly(s); nav.pop() }
+    val leftOut = stringResource(R.string.left_out)
+    fun leave() { if (s.libraryFolders to s.libraryExcluded != before) app.remote.syncQuietly(s); nav.pop() }
     BackHandler { leave() }
     Page {
         Column(Modifier.fillMaxSize()) {
@@ -281,16 +291,30 @@ fun LibraryFoldersScreen(nav: Nav, app: App) {
                 item { TextRow(stringResource(R.string.whole_drive), inverted = chosen.isEmpty()) { if (chosen.isNotEmpty()) app.prefs.setLibraryFolders(emptyList()) } }
                 items(known, key = { it.path }) { f ->
                     val isChosen = f.path in chosen
+                    val out = Folders.leftOut(excluded, f.path)
+                    val outBy = excluded.firstOrNull { it != f.path && Folders.under(it, f.path) }
                     val part = Folders.partOf(chosen, f.path)
                     val count = pluralStringResource(R.plurals.n_books, f.count, f.count)
-                    TextRow(f.path, inverted = chosen.isNotEmpty() && Folders.inLibrary(chosen, f.path),
-                        secondary = part?.let { count + " · " + stringResource(R.string.in_folder, it.ifEmpty { rootFolder }) } ?: count) {
-                        if (isChosen) app.prefs.setLibraryFolders(chosen - f.path)
+                    val secondary = when {
+                        outBy != null -> count + " · " + leftOut + " · " + stringResource(R.string.in_folder, outBy)
+                        out -> count + " · " + leftOut
+                        part != null -> count + " · " + stringResource(R.string.in_folder, part.ifEmpty { rootFolder })
+                        else -> count
+                    }
+                    TextRow(f.path, inverted = chosen.isNotEmpty() && Folders.inLibrary(chosen, f.path, excluded), secondary = secondary,
+                        onLongPress = { folderMenu = f.path }) {
+                        if (out) folderMenu = f.path
+                        else if (isChosen) app.prefs.setLibraryFolders(chosen - f.path)
                         else if (part == null) app.prefs.setLibraryFolders(chosen + f.path)
                     }
                 }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+        folderMenu?.let { path ->
+            val item = if (path in excluded) MenuItem(stringResource(R.string.take_back)) { app.prefs.setLibraryExcluded(excluded - path); folderMenu = null }
+                else MenuItem(stringResource(R.string.leave_out), secondary = stringResource(R.string.leave_out_hint)) { app.prefs.setLibraryExcluded(excluded + path); folderMenu = null }
+            TextMenu(path, listOf(item), onDismiss = { folderMenu = null })
         }
     }
 }
@@ -329,9 +353,9 @@ fun SendToLibraryScreen(nav: Nav, app: App, id: String) {
     val rootFolder = stringResource(R.string.root_folder)
     val lastTime = stringResource(R.string.last_time)
     val counts = remember(index) { app.remote.knownFolders().associate { it.path to it.count } }
-    val folders = remember(index, s.libraryFolders, s.sendFolder) {
+    val folders = remember(index, s.libraryFolders, s.libraryExcluded, s.sendFolder) {
         (counts.keys + s.libraryFolders + "")
-            .filter { Folders.inLibrary(s.libraryFolders, it) && !Folders.under(TRANSCRIPTS_FOLDER, it) }
+            .filter { Folders.inLibrary(s.libraryFolders, it, s.libraryExcluded) && !Folders.under(TRANSCRIPTS_FOLDER, it) }
             .distinct().sortedWith(compareBy({ it != s.sendFolder }, { it.lowercase() }))
     }
     BackHandler { nav.pop() }

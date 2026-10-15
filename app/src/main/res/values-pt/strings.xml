@@ -45,7 +45,11 @@
     <string name="password">palavra-passe</string>
     <string name="sync_now">sincronizar agora</string>
     <string name="library_folders">pastas da biblioteca</string>
-    <string name="library_folders_hint">Toda a drive está na biblioteca. Escolha pastas para ficar só com essas, com tudo o que contêm: a biblioteca sincroniza-se então mais depressa. As transcrições do Reader\'s Podcasts ficam em todo o caso.</string>
+    <string name="library_folders_hint">Toda a drive está na biblioteca. Escolha pastas para ficar só com essas, com tudo o que contêm: a biblioteca sincroniza-se então mais depressa. Mantenha uma pasta premida para a deixar de fora: deixa então de ser mostrada e sincronizada, seja qual for o resto da escolha. As transcrições do Reader\'s Podcasts ficam, salvo se deixadas de fora.</string>
+    <string name="left_out">deixada de fora</string>
+    <string name="leave_out">deixar esta pasta de fora</string>
+    <string name="leave_out_hint">com tudo o que contém: nem mostrada, nem sincronizada</string>
+    <string name="take_back">voltar a incluir esta pasta</string>
     <string name="whole_drive">toda a drive</string>
     <string name="in_folder">em %1$s</string>
     <string name="folders_offer">ficar só com algumas pastas?</string>
@@ -93,6 +97,10 @@
     <string name="stop_scan">parar o percurso</string>
     <string name="notif_channel">percurso da biblioteca</string>
     <string name="notif_scanning">a percorrer a drive</string>
+    <plurals name="n_folders_left_out">
+        <item quantity="one">%d pasta deixada de fora</item>
+        <item quantity="other">%d pastas deixadas de fora</item>
+    </plurals>
     <plurals name="n_folders_chosen">
         <item quantity="one">%d pasta escolhida</item>
         <item quantity="many">%d pastas escolhidas</item>

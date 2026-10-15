@@ -45,7 +45,11 @@
     <string name="password">Passwort</string>
     <string name="sync_now">jetzt synchronisieren</string>
     <string name="library_folders">Ordner der Bibliothek</string>
-    <string name="library_folders_hint">Das ganze Drive ist in der Bibliothek. Wählen Sie Ordner, um nur diese zu behalten, mit allem darin: die Bibliothek wird dann schneller synchronisiert. Die Transkriptionen von Reader\'s Podcasts bleiben in jedem Fall.</string>
+    <string name="library_folders_hint">Das ganze Drive ist in der Bibliothek. Wählen Sie Ordner, um nur diese zu behalten, mit allem darin: die Bibliothek wird dann schneller synchronisiert. Halten Sie einen Ordner gedrückt, um ihn auszuschließen: er wird dann weder angezeigt noch synchronisiert, was auch sonst gewählt ist. Die Transkriptionen von Reader\'s Podcasts bleiben, außer sie sind ausgeschlossen.</string>
+    <string name="left_out">ausgeschlossen</string>
+    <string name="leave_out">diesen Ordner ausschließen</string>
+    <string name="leave_out_hint">mit allem darin: nicht angezeigt, nicht synchronisiert</string>
+    <string name="take_back">diesen Ordner wieder aufnehmen</string>
     <string name="whole_drive">das ganze Drive</string>
     <string name="in_folder">in %1$s</string>
     <string name="folders_offer">nur einige Ordner behalten?</string>
@@ -93,6 +97,10 @@
     <string name="stop_scan">Suche anhalten</string>
     <string name="notif_channel">Bibliothekssuche</string>
     <string name="notif_scanning">Drive wird durchsucht</string>
+    <plurals name="n_folders_left_out">
+        <item quantity="one">%d Ordner ausgeschlossen</item>
+        <item quantity="other">%d Ordner ausgeschlossen</item>
+    </plurals>
     <plurals name="n_folders_chosen">
         <item quantity="one">%d Ordner gewählt</item>
         <item quantity="other">%d Ordner gewählt</item>

@@ -62,4 +62,21 @@ class FoldersTest {
         val merged = Folders.merge(emptyList(), "a", emptyList(), listOf(book("a", "ok.epub"), book("b", "stray.epub")))
         assertEquals(listOf("a/ok.epub"), merged.map { it.folder + "/" + it.name })
     }
+
+    @Test fun aFolderLeftOutIsOutWithWhatIsInsideWhateverIsChosen() {
+        val excluded = listOf("Books/Old")
+        assertTrue(Folders.leftOut(excluded, "Books/Old"))
+        assertTrue(Folders.leftOut(excluded, "Books/Old/Deeper"))
+        assertFalse(Folders.leftOut(excluded, "Books/Older"))   // a prefix of the name is not inside
+        assertFalse(Folders.leftOut(excluded, "Books"))
+        assertFalse(Folders.leftOut(emptyList(), "Books/Old"))
+        // the whole drive, less that folder
+        assertTrue(Folders.inLibrary(emptyList(), "Books", excluded))
+        assertFalse(Folders.inLibrary(emptyList(), "Books/Old/Deeper", excluded))
+        // a chosen folder with a part of it left out
+        assertTrue(Folders.inLibrary(listOf("Books"), "Books/Maigret", excluded))
+        assertFalse(Folders.inLibrary(listOf("Books"), "Books/Old", excluded))
+        // even the transcripts' folder, when it is the one left out
+        assertFalse(Folders.inLibrary(listOf("Books"), "$TRANSCRIPTS_FOLDER/x", listOf(TRANSCRIPTS_FOLDER)))
+    }
 }

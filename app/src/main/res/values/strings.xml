@@ -47,7 +47,11 @@
     <string name="password">password</string>
     <string name="sync_now">sync now</string>
     <string name="library_folders">folders of the library</string>
-    <string name="library_folders_hint">The whole drive is in the library. Choose folders to keep only those, with everything inside them: the library is then synced faster. The transcriptions of Reader\'s Podcasts stay in any case.</string>
+    <string name="library_folders_hint">The whole drive is in the library. Choose folders to keep only those, with everything inside them: the library is then synced faster. Hold a folder to leave it out: it is then neither shown nor synced, whatever else is chosen. The transcriptions of Reader\'s Podcasts stay unless left out.</string>
+    <string name="left_out">left out</string>
+    <string name="leave_out">leave this folder out</string>
+    <string name="leave_out_hint">with everything inside it: not shown, not synced</string>
+    <string name="take_back">take this folder back in</string>
     <string name="whole_drive">the whole drive</string>
     <string name="in_folder">in %1$s</string>
     <string name="folders_offer">keep only some folders?</string>
@@ -95,6 +99,10 @@
     <string name="stop_scan">stop the scan</string>
     <string name="notif_channel">library scan</string>
     <string name="notif_scanning">scanning the drive</string>
+    <plurals name="n_folders_left_out">
+        <item quantity="one">%d folder left out</item>
+        <item quantity="other">%d folders left out</item>
+    </plurals>
     <plurals name="n_folders_chosen">
         <item quantity="one">%d folder chosen</item>
         <item quantity="other">%d folders chosen</item>

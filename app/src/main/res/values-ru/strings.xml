@@ -45,7 +45,11 @@
     <string name="password">пароль</string>
     <string name="sync_now">синхронизировать сейчас</string>
     <string name="library_folders">папки библиотеки</string>
-    <string name="library_folders_hint">В библиотеке весь диск. Выберите папки, чтобы оставить только их, со всем содержимым: библиотека тогда синхронизируется быстрее. Расшифровки Reader\'s Podcasts остаются в любом случае.</string>
+    <string name="library_folders_hint">В библиотеке весь диск. Выберите папки, чтобы оставить только их со всем содержимым: тогда библиотека синхронизируется быстрее. Удерживайте папку, чтобы исключить её: тогда она не показывается и не синхронизируется, что бы ни было выбрано. Транскрипции Reader\'s Podcasts остаются, если не исключены.</string>
+    <string name="left_out">исключена</string>
+    <string name="leave_out">исключить эту папку</string>
+    <string name="leave_out_hint">со всем содержимым: не показывается, не синхронизируется</string>
+    <string name="take_back">вернуть эту папку</string>
     <string name="whole_drive">весь диск</string>
     <string name="in_folder">в %1$s</string>
     <string name="folders_offer">оставить только некоторые папки?</string>
@@ -93,6 +97,12 @@
     <string name="stop_scan">остановить просмотр</string>
     <string name="notif_channel">просмотр библиотеки</string>
     <string name="notif_scanning">просмотр диска</string>
+    <plurals name="n_folders_left_out">
+        <item quantity="one">%d папка исключена</item>
+        <item quantity="few">%d папки исключены</item>
+        <item quantity="many">%d папок исключено</item>
+        <item quantity="other">%d папок исключено</item>
+    </plurals>
     <plurals name="n_folders_chosen">
         <item quantity="one">%d папка выбрана</item>
         <item quantity="few">%d папки выбраны</item>

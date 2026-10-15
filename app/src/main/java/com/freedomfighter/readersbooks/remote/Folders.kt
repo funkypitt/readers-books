@@ -3,13 +3,18 @@ package com.freedomfighter.readersbooks.remote
 /**
  * Which folders of the drive make the library. Empty = the whole drive. A chosen folder stands
  * for everything inside it; the folder Reader's Podcasts sends its transcripts to is always in.
- * The choice is kept in the settings; a sync walks only these folders, and only their books are shown.
+ * A folder left out is out with everything inside it, whatever else is chosen: it is neither
+ * shown nor walked by a sync. Both lists are kept in the settings; a sync walks only the chosen
+ * folders, skips the ones left out, and only the remaining books are shown.
  */
 object Folders {
     fun under(parent: String, folder: String) = parent.isEmpty() || folder == parent || folder.startsWith("$parent/")
 
-    fun inLibrary(chosen: List<String>, folder: String): Boolean =
-        chosen.isEmpty() || under(TRANSCRIPTS_FOLDER, folder) || chosen.any { under(it, folder) }
+    /** True when the folder, or a folder above it, was left out. */
+    fun leftOut(excluded: List<String>, folder: String): Boolean = excluded.any { it.isNotEmpty() && under(it, folder) }
+
+    fun inLibrary(chosen: List<String>, folder: String, excluded: List<String> = emptyList()): Boolean =
+        !leftOut(excluded, folder) && (chosen.isEmpty() || under(TRANSCRIPTS_FOLDER, folder) || chosen.any { under(it, folder) })
 
     /** The chosen folder a folder is part of without being chosen itself; null otherwise. */
     fun partOf(chosen: List<String>, folder: String): String? =

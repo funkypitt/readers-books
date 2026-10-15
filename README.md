@@ -48,6 +48,8 @@ network is used only if you set up a library on your own drive. It extends the b
   folders and books) and carries on where it stopped if it is cut short. Once the drive has
   been walked, the library offers to keep only some of its folders (with everything inside
   them): fewer folders, faster syncs — the choice is in the library's menu and in the settings.
+  A folder held long is left out instead, with everything inside it, whatever else is chosen:
+  neither shown nor synced, until it is taken back in from the same list.
   The account can be exported and imported as the Reader's credentials file shared by the
   other Reader's apps (`readers-books-credentials.json`, saved where you choose, then offered
   to the share menu).

@@ -45,7 +45,11 @@
     <string name="password">mot de passe</string>
     <string name="sync_now">synchroniser maintenant</string>
     <string name="library_folders">dossiers de la bibliothèque</string>
-    <string name="library_folders_hint">Tout le drive est dans la bibliothèque. Choisissez des dossiers pour ne garder que ceux-là, avec tout ce qu\'ils contiennent : la bibliothèque se synchronise alors plus vite. Les transcriptions de Reader\'s Podcasts restent dans tous les cas.</string>
+    <string name="library_folders_hint">Tout le drive est dans la bibliothèque. Choisissez des dossiers pour ne garder que ceux-là, avec tout ce qu\'ils contiennent : la bibliothèque se synchronise alors plus vite. Appuyez longuement sur un dossier pour l\'écarter : il n\'est alors ni affiché ni synchronisé, quel que soit le reste du choix. Les transcriptions de Reader\'s Podcasts restent, sauf si elles sont écartées.</string>
+    <string name="left_out">écarté</string>
+    <string name="leave_out">écarter ce dossier</string>
+    <string name="leave_out_hint">avec tout ce qu\'il contient : ni affiché, ni synchronisé</string>
+    <string name="take_back">reprendre ce dossier</string>
     <string name="whole_drive">tout le drive</string>
     <string name="in_folder">dans %1$s</string>
     <string name="folders_offer">ne garder que certains dossiers ?</string>
@@ -93,6 +97,10 @@
     <string name="stop_scan">arrêter le parcours</string>
     <string name="notif_channel">parcours de la bibliothèque</string>
     <string name="notif_scanning">parcours du drive</string>
+    <plurals name="n_folders_left_out">
+        <item quantity="one">%d dossier écarté</item>
+        <item quantity="other">%d dossiers écartés</item>
+    </plurals>
     <plurals name="n_folders_chosen">
         <item quantity="one">%d dossier choisi</item>
         <item quantity="many">%d dossiers choisis</item>
