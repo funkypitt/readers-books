@@ -3,6 +3,7 @@ package com.freedomfighter.readersbooks.remote
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.freedomfighter.readersbooks.data.FolderSort
 import com.freedomfighter.readersbooks.data.Settings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -42,8 +43,8 @@ data class Index(
 /** Where a scan is: folders listed, books found, folders that could not be read. */
 data class Progress(val folders: Int, val books: Int, val failed: Int = 0)
 
-/** One folder of the drive that holds books. */
-data class Folder(val path: String, val count: Int) { val name: String get() = path.substringAfterLast('/') }
+/** One folder of the drive that holds books: how many, the latest change among them, and how many folders it spans when it stands for a top folder. */
+data class Folder(val path: String, val count: Int, val modified: Long = 0L, val subfolders: Int = 1) { val name: String get() = path.substringAfterLast('/') }
 
 /** Where Reader's Podcasts puts what was said in an episode, a small book each. */
 const val TRANSCRIPTS_FOLDER = "transcriptions"
@@ -94,12 +95,18 @@ class RemoteLibrary(private val context: Context) {
     /** The books in the library: those of the chosen folders, or all of them, less the folders left out. */
     fun shown(s: Settings): List<RemoteBook> = _index.value.books.filter { Folders.inLibrary(s.libraryFolders, it.folder, s.libraryExcluded) }
 
-    fun folders(s: Settings): List<Folder> = shown(s).groupBy { it.folder }.map { (p, b) -> Folder(p, b.size) }.sortedWith(compareBy({ it.path.lowercase() }))
+    /** The folders of the library, in the chosen order: every folder, or the top folders only when the library is grouped by them. */
+    fun folders(s: Settings): List<Folder> = Folders.sortFolders(Folders.grouped(shown(s), s.libraryTopFolders), s.folderSort)
 
     /** Every folder the drive was seen to hold books in, chosen or not: what the choice is made from. */
-    fun knownFolders(): List<Folder> = _index.value.books.groupBy { it.folder }.map { (p, b) -> Folder(p, b.size) }.sortedWith(compareBy({ it.path.lowercase() }))
+    fun knownFolders(): List<Folder> = Folders.sortFolders(Folders.grouped(_index.value.books, false), FolderSort.NAME)
 
-    fun books(folder: String): List<RemoteBook> = _index.value.books.filter { it.folder == folder }
+    /** The books of one folder, alone or with everything inside it; left-out folders stay out. */
+    fun books(s: Settings, folder: String, subfolders: Boolean = false): List<RemoteBook> =
+        shown(s).filter { if (subfolders) Folders.under(folder, it.folder) else it.folder == folder }
+
+    /** True when a folder holds books in folders inside it. */
+    fun hasSubfolders(s: Settings, folder: String): Boolean = shown(s).any { it.folder != folder && Folders.under(folder, it.folder) }
 
     /** True when the last sync is old enough for the library to sync again by itself at its opening. */
     fun stale(now: Long = System.currentTimeMillis()) = now - _index.value.scannedAt > STALE_AFTER_MS

@@ -31,10 +31,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
-import com.freedomfighter.readersbooks.data.AllBooksSort
+import com.freedomfighter.readersbooks.data.BookSort
 import com.freedomfighter.readersbooks.data.Credentials
 import com.freedomfighter.readersbooks.data.CredentialsShare
-import com.freedomfighter.readersbooks.data.LibrarySort
+import com.freedomfighter.readersbooks.data.FolderSort
 import com.freedomfighter.readersbooks.data.Settings
 import com.freedomfighter.readersbooks.books.BookFormat
 import com.freedomfighter.readersbooks.books.Entry
@@ -70,7 +70,23 @@ private fun sizeLabel(bytes: Long): String = when {
 private fun dateLabel(millis: Long): String = if (millis == 0L) "" else
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
-/** Folders of the drive that hold books; the setup rows when no drive is set yet. */
+@Composable
+private fun folderSortLabel(sort: FolderSort) = stringResource(when (sort) { FolderSort.NAME -> R.string.sort_name; FolderSort.NEWEST -> R.string.sort_newest; FolderSort.COUNT -> R.string.sort_count })
+
+@Composable
+private fun bookSortLabel(sort: BookSort) = stringResource(when (sort) {
+    BookSort.NEWEST -> R.string.sort_newest; BookSort.OLDEST -> R.string.sort_oldest; BookSort.NAME -> R.string.sort_name
+    BookSort.AUTHOR -> R.string.sort_author; BookSort.OPENED -> R.string.sort_opened
+})
+
+/** The orders a list of the library's books can take, as menu items; `set` keeps the one tapped. */
+@Composable
+private fun bookOrders(set: (BookSort) -> Unit): List<MenuItem> = BookSort.entries.map { o -> MenuItem(bookSortLabel(o)) { set(o) } }
+
+/**
+ * Folders of the drive that hold books — every folder, or the top folders only, each standing
+ * for everything inside it (menu) — in the chosen order; the setup rows when no drive is set yet.
+ */
 @Composable
 fun LibraryScreen(nav: Nav, app: App) {
     val s by app.prefs.settings.collectAsState()
@@ -78,6 +94,7 @@ fun LibraryScreen(nav: Nav, app: App) {
     val progress by app.remote.progress.collectAsState()
     val error by app.remote.error.collectAsState()
     var menu by remember { mutableStateOf(false) }
+    var orderMenu by remember { mutableStateOf(false) }
     var folderMenu by remember { mutableStateOf<String?>(null) }
     var prompt by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -111,7 +128,7 @@ fun LibraryScreen(nav: Nav, app: App) {
                     CredentialsRows(app, s, export)
                 }
             } else {
-                val folders = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.folders(s) }
+                val folders = remember(index, s.libraryFolders, s.libraryExcluded, s.libraryTopFolders, s.folderSort) { app.remote.folders(s) }
                 val shown = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.shown(s) }
                 val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
@@ -134,8 +151,12 @@ fun LibraryScreen(nav: Nav, app: App) {
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                     if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, shown.size, shown.size)) { nav.push(Screen.AllBooks) } }
                     items(folders, key = { it.path }) { f ->
-                        TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = listOf(pluralStringResource(R.plurals.n_books, f.count, f.count)).joinToString(),
-                            onLongPress = if (f.path.isNotEmpty()) ({ folderMenu = f.path }) else null) { nav.push(Screen.Folder(f.path)) }
+                        // a top folder says how many folders it spans; its books are listed with them
+                        val line = listOfNotNull(pluralStringResource(R.plurals.n_books, f.count, f.count),
+                            if (f.subfolders > 1) pluralStringResource(R.plurals.n_folders, f.subfolders, f.subfolders) else null,
+                            if (s.folderSort == FolderSort.NEWEST && f.modified > 0L) dateLabel(f.modified) else null).joinToString(" · ")
+                        TextRow(f.path.ifEmpty { stringResource(R.string.root_folder) }, secondary = line,
+                            onLongPress = if (f.path.isNotEmpty()) ({ folderMenu = f.path }) else null) { nav.push(Screen.Folder(f.path, group = s.libraryTopFolders && f.path.isNotEmpty())) }
                     }
                 }
             }
@@ -148,35 +169,43 @@ fun LibraryScreen(nav: Nav, app: App) {
         if (menu) TextMenu(null, listOfNotNull(
             if (progress == null && (!index.complete || index.failed.isNotEmpty())) MenuItem(stringResource(R.string.continue_scan)) { scan(false) } else null,
             if (progress == null) MenuItem(stringResource(R.string.scan_again)) { scan(true) } else MenuItem(stringResource(R.string.stop_scan)) { app.remote.cancel() },
+            MenuItem(stringResource(if (s.libraryTopFolders) R.string.every_folder else R.string.group_top), secondary = stringResource(if (s.libraryTopFolders) R.string.every_folder_hint else R.string.group_top_hint)) { app.prefs.setLibraryTopFolders(!s.libraryTopFolders) },
+            MenuItem(stringResource(R.string.order), secondary = folderSortLabel(s.folderSort)) { orderMenu = true },
             MenuItem(stringResource(R.string.library_folders)) { nav.push(Screen.LibraryFolders) },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ), onDismiss = { menu = false })
+        if (orderMenu) TextMenu(stringResource(R.string.order), FolderSort.entries.map { o -> MenuItem(folderSortLabel(o)) { app.prefs.setFolderSort(o) } }, onDismiss = { orderMenu = false })
         LibraryAccountPrompt(app, s, prompt) { prompt = null }
         CredentialsExportMenu(export)
     }
 }
 
-/** The books of one folder, by name or by date. Tap fetches the book and opens it. */
+/**
+ * The books of one folder, in the chosen order: the folder alone, or with the folders inside it
+ * (the menu; a top folder standing for a `group` always has them), each book then naming its
+ * folder. Tap fetches the book and opens it.
+ */
 @Composable
-fun FolderScreen(nav: Nav, app: App, path: String) {
+fun FolderScreen(nav: Nav, app: App, path: String, group: Boolean = false) {
     val s by app.prefs.settings.collectAsState()
     val index by app.remote.index.collectAsState()
-    val books = remember(index, s.librarySort) {
-        val b = app.remote.books(path)
-        when (s.librarySort) {
-            LibrarySort.NAME -> b.sortedBy { it.name.lowercase() }
-            LibrarySort.NEWEST -> b.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
-            LibrarySort.OLDEST -> b.sortedWith(compareBy<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
-        }
+    val shelf by app.library.books.collectAsState()
+    val opened = remember(shelf) { openedOnShelf(shelf) }
+    val subfolders = group || s.librarySubfolders
+    val hasSubfolders = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.hasSubfolders(s, path) }
+    val books = remember(index, opened, s.librarySort, s.libraryFolders, s.libraryExcluded, subfolders) {
+        Folders.sortBooks(app.remote.books(s, path, subfolders), s.librarySort, opened)
     }
-    BookList(nav, app, path.substringAfterLast('/').ifEmpty { stringResource(R.string.root_folder) }, books,
-        order = stringResource(when (s.librarySort) { LibrarySort.NAME -> R.string.sort_name; LibrarySort.NEWEST -> R.string.sort_newest; LibrarySort.OLDEST -> R.string.sort_oldest }),
-        orders = listOf(
-            MenuItem(stringResource(R.string.sort_name)) { app.prefs.setLibrarySort(LibrarySort.NAME) },
-            MenuItem(stringResource(R.string.sort_newest)) { app.prefs.setLibrarySort(LibrarySort.NEWEST) },
-            MenuItem(stringResource(R.string.sort_oldest)) { app.prefs.setLibrarySort(LibrarySort.OLDEST) }
-        ))
+    val withSubfolders = stringResource(R.string.with_subfolders)
+    BookList(nav, app, if (group) path else path.substringAfterLast('/').ifEmpty { stringResource(R.string.root_folder) }, books,
+        order = listOfNotNull(bookSortLabel(s.librarySort), if (subfolders && hasSubfolders) withSubfolders else null).joinToString(" · "),
+        orders = bookOrders { app.prefs.setLibrarySort(it) },
+        footer = if (!group && hasSubfolders) listOf(MenuItem(stringResource(if (subfolders) R.string.this_folder_only else R.string.with_subfolders)) { app.prefs.setLibrarySubfolders(!subfolders) }) else emptyList(),
+        showFolder = subfolders, base = path, opened = if (s.librarySort == BookSort.OPENED) opened else null)
 }
+
+/** When each book of the library was last opened here, by its reference on the drive. */
+private fun openedOnShelf(shelf: List<Entry>): Map<String, Long> = shelf.filter { it.source != null }.associate { it.source!! to maxOf(it.opened, it.added) }
 
 /**
  * Every book of the drive in one list, the folders left out: by last change (newest first), by
@@ -187,36 +216,21 @@ fun AllBooksScreen(nav: Nav, app: App) {
     val s by app.prefs.settings.collectAsState()
     val index by app.remote.index.collectAsState()
     val shelf by app.library.books.collectAsState()
-    // when each book was last opened here, by its reference on the drive
-    val opened = remember(shelf) { shelf.filter { it.source != null }.associate { it.source!! to maxOf(it.opened, it.added) } }
-    val books = remember(index, opened, s.allBooksSort, s.libraryFolders, s.libraryExcluded) {
-        val b = app.remote.shown(s)
-        when (s.allBooksSort) {
-            AllBooksSort.NEWEST -> b.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
-            AllBooksSort.NAME -> b.sortedBy { it.name.lowercase() }
-            // books whose author is not known go last, by name
-            AllBooksSort.AUTHOR -> b.sortedWith(compareBy<RemoteBook>({ it.author.isEmpty() }, { it.author.lowercase() }, { it.title.lowercase() }))
-            AllBooksSort.OPENED -> b.sortedWith(compareByDescending<RemoteBook> { opened[it.ref] ?: 0L }.thenBy { it.name.lowercase() })
-        }
-    }
+    val opened = remember(shelf) { openedOnShelf(shelf) }
+    val books = remember(index, opened, s.allBooksSort, s.libraryFolders, s.libraryExcluded) { Folders.sortBooks(app.remote.shown(s), s.allBooksSort, opened) }
     BookList(nav, app, stringResource(R.string.all_books), books, showFolder = true,
-        order = stringResource(when (s.allBooksSort) { AllBooksSort.NEWEST -> R.string.sort_newest; AllBooksSort.NAME -> R.string.sort_name; AllBooksSort.AUTHOR -> R.string.sort_author; AllBooksSort.OPENED -> R.string.sort_opened }),
-        orders = listOf(
-            MenuItem(stringResource(R.string.sort_newest)) { app.prefs.setAllBooksSort(AllBooksSort.NEWEST) },
-            MenuItem(stringResource(R.string.sort_name)) { app.prefs.setAllBooksSort(AllBooksSort.NAME) },
-            MenuItem(stringResource(R.string.sort_author)) { app.prefs.setAllBooksSort(AllBooksSort.AUTHOR) },
-            MenuItem(stringResource(R.string.sort_opened)) { app.prefs.setAllBooksSort(AllBooksSort.OPENED) }
-        ),
-        opened = if (s.allBooksSort == AllBooksSort.OPENED) opened else null)
+        order = bookSortLabel(s.allBooksSort), orders = bookOrders { app.prefs.setAllBooksSort(it) },
+        opened = if (s.allBooksSort == BookSort.OPENED) opened else null)
 }
 
 /**
  * A list of the drive's books under a title, with the current order named above it and the
- * orders offered in the ⋯ menu. Tap fetches the book (once) and opens it. `opened` adds when
- * this app last opened each book to its line.
+ * orders offered in the ⋯ menu (`footer` = what else the menu offers). Tap fetches the book
+ * (once) and opens it. `showFolder` names each book's folder on its line, as seen from `base`;
+ * `opened` adds when this app last opened each book.
  */
 @Composable
-private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, showFolder: Boolean = false, opened: Map<String, Long>? = null) {
+private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, footer: List<MenuItem> = emptyList(), showFolder: Boolean = false, base: String = "", opened: Map<String, Long>? = null) {
     val s by app.prefs.settings.collectAsState()
     val shelf by app.library.books.collectAsState()
     val scope = rememberCoroutineScope()
@@ -249,7 +263,7 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
                     val openedLabel = opened?.get(b.ref)?.let { stringResource(R.string.opened_on, whenLabel(it, yesterday)) } ?: ""
                     val line = listOf(
                         if (fetching == b.ref) stringResource(R.string.downloading) else if (onShelf) stringResource(R.string.on_shelf) else "",
-                        openedLabel, if (showFolder) b.folderName.ifEmpty { rootFolder } else "",
+                        openedLabel, if (showFolder) Folders.relative(base, b.folder).ifEmpty { if (base.isEmpty()) rootFolder else "" } else "",
                         dateLabel(b.modified), b.extension, sizeLabel(b.size)
                     ).filter { it.isNotEmpty() }.joinToString(" · ")
                     Column(Modifier.fillMaxWidth().noRippleClickable { open(b) }.padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
@@ -260,7 +274,7 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(stringResource(R.string.order), orders, onDismiss = { menu = false })
+        if (menu) TextMenu(stringResource(R.string.order), orders, onDismiss = { menu = false }, footer = footer)
     }
 }
 

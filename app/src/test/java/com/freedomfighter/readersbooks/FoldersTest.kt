@@ -1,5 +1,7 @@
 package com.freedomfighter.readersbooks
 
+import com.freedomfighter.readersbooks.data.BookSort
+import com.freedomfighter.readersbooks.data.FolderSort
 import com.freedomfighter.readersbooks.remote.Folders
 import com.freedomfighter.readersbooks.remote.RemoteBook
 import com.freedomfighter.readersbooks.remote.TRANSCRIPTS_FOLDER
@@ -78,5 +80,49 @@ class FoldersTest {
         assertFalse(Folders.inLibrary(listOf("Books"), "Books/Old", excluded))
         // even the transcripts' folder, when it is the one left out
         assertFalse(Folders.inLibrary(listOf("Books"), "$TRANSCRIPTS_FOLDER/x", listOf(TRANSCRIPTS_FOLDER)))
+    }
+
+    // ---- grouping by top folder, and the orders of folders and books
+
+    private fun book(folder: String, name: String, modified: Long) = RemoteBook(name, folder, "ref:$folder/$name", 1L, modified)
+    private val drive = listOf(
+        book("Books/novels/Roald Dahl", "Matilda.epub", 30L), book("Books/novels", "Dune.epub", 10L),
+        book("Books/science", "Cosmos.epub", 50L), book("Books/science", "Carl Sagan - Contact.epub", 20L),
+        book("transcriptions/Huberman", "Sleep.epub", 60L), book("", "Loose.epub", 40L))
+
+    @Test fun everyFolderOrTheTopOnes() {
+        assertEquals(listOf("", "Books/novels", "Books/novels/Roald Dahl", "Books/science", "transcriptions/Huberman"),
+            Folders.sortFolders(Folders.grouped(drive, false), FolderSort.NAME).map { it.path })
+        val top = Folders.sortFolders(Folders.grouped(drive, true), FolderSort.NAME)
+        assertEquals(listOf("", "Books", "transcriptions"), top.map { it.path })
+        val books = top.first { it.path == "Books" }
+        assertEquals(4, books.count); assertEquals(3, books.subfolders); assertEquals(50L, books.modified)
+        assertEquals(1, top.first { it.path == "" }.subfolders)      // the top of the drive stands by itself
+    }
+
+    @Test fun foldersInEveryOrder() {
+        val top = Folders.grouped(drive, true)
+        assertEquals(listOf("transcriptions", "Books", ""), Folders.sortFolders(top, FolderSort.NEWEST).map { it.path })
+        assertEquals(listOf("Books", "", "transcriptions"), Folders.sortFolders(top, FolderSort.COUNT).map { it.path })
+    }
+
+    @Test fun aFolderAloneOrWithWhatIsInside() {
+        assertEquals(listOf("Dune.epub"), drive.filter { it.folder == "Books/novels" }.map { it.name })
+        assertEquals(setOf("Dune.epub", "Matilda.epub"), drive.filter { Folders.under("Books/novels", it.folder) }.map { it.name }.toSet())
+        assertEquals("novels/Roald Dahl", Folders.relative("Books", "Books/novels/Roald Dahl"))
+        assertEquals("", Folders.relative("Books", "Books"))
+        assertEquals("Books/science", Folders.relative("", "Books/science"))
+        assertEquals("Books", Folders.top("Books/novels/Roald Dahl")); assertEquals("", Folders.top(""))
+    }
+
+    @Test fun booksInEveryOrder() {
+        val b = drive.filter { Folders.under("Books", it.folder) }
+        assertEquals(listOf("Cosmos.epub", "Matilda.epub", "Carl Sagan - Contact.epub", "Dune.epub"), Folders.sortBooks(b, BookSort.NEWEST).map { it.name })
+        assertEquals(listOf("Dune.epub", "Carl Sagan - Contact.epub", "Matilda.epub", "Cosmos.epub"), Folders.sortBooks(b, BookSort.OLDEST).map { it.name })
+        assertEquals(listOf("Carl Sagan - Contact.epub", "Cosmos.epub", "Dune.epub", "Matilda.epub"), Folders.sortBooks(b, BookSort.NAME).map { it.name })
+        // the author: before " - " in the name, else the folder's name
+        assertEquals(listOf("Carl Sagan - Contact.epub", "Dune.epub", "Matilda.epub", "Cosmos.epub"), Folders.sortBooks(b, BookSort.AUTHOR).map { it.name })
+        val opened = mapOf("ref:Books/novels/Dune.epub" to 5L, "ref:Books/science/Cosmos.epub" to 9L)
+        assertEquals(listOf("Cosmos.epub", "Dune.epub", "Carl Sagan - Contact.epub", "Matilda.epub"), Folders.sortBooks(b, BookSort.OPENED, opened).map { it.name })
     }
 }

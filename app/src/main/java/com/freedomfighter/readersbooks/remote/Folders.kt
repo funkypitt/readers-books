@@ -1,5 +1,8 @@
 package com.freedomfighter.readersbooks.remote
 
+import com.freedomfighter.readersbooks.data.BookSort
+import com.freedomfighter.readersbooks.data.FolderSort
+
 /**
  * Which folders of the drive make the library. Empty = the whole drive. A chosen folder stands
  * for everything inside it; the folder Reader's Podcasts sends its transcripts to is always in.
@@ -37,5 +40,37 @@ object Folders {
             child in keptSub
         }
         return kept + found.filter { it.folder == folder }
+    }
+
+    /** The top folder a folder is in: its first name; "" for the top of the drive itself. */
+    fun top(folder: String): String = folder.substringBefore('/')
+
+    /** A folder's path as seen from inside `base`: "" for the base itself. */
+    fun relative(base: String, folder: String): String = if (folder == base) "" else if (base.isEmpty()) folder else folder.removePrefix("$base/")
+
+    /**
+     * The folders these books are in, each with its count and its latest book: every folder, or
+     * the top folders only, each standing for everything inside it (the books of the top of the
+     * drive stand by themselves). `subfolders` = how many folders a top folder spans.
+     */
+    fun grouped(books: List<RemoteBook>, top: Boolean): List<Folder> =
+        books.groupBy { if (top) top(it.folder) else it.folder }.map { (p, b) ->
+            Folder(p, b.size, b.maxOf { it.modified }, if (top) b.map { it.folder }.toSet().size else 1)
+        }
+
+    fun sortFolders(folders: List<Folder>, sort: FolderSort): List<Folder> = when (sort) {
+        FolderSort.NAME -> folders.sortedBy { it.path.lowercase() }
+        FolderSort.NEWEST -> folders.sortedWith(compareByDescending<Folder> { it.modified }.thenBy { it.path.lowercase() })
+        FolderSort.COUNT -> folders.sortedWith(compareByDescending<Folder> { it.count }.thenBy { it.path.lowercase() })
+    }
+
+    /** The books of one list in the chosen order; `opened` = when this app last opened each, by its reference. */
+    fun sortBooks(books: List<RemoteBook>, sort: BookSort, opened: Map<String, Long> = emptyMap()): List<RemoteBook> = when (sort) {
+        BookSort.NEWEST -> books.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
+        BookSort.OLDEST -> books.sortedWith(compareBy<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })
+        BookSort.NAME -> books.sortedBy { it.name.lowercase() }
+        // books whose author is not known go last, by name
+        BookSort.AUTHOR -> books.sortedWith(compareBy<RemoteBook>({ it.author.isEmpty() }, { it.author.lowercase() }, { it.title.lowercase() }))
+        BookSort.OPENED -> books.sortedWith(compareByDescending<RemoteBook> { opened[it.ref] ?: 0L }.thenBy { it.name.lowercase() })
     }
 }

@@ -70,6 +70,15 @@
     <string name="all_books">all books</string>
     <string name="sort_author">by author</string>
     <string name="sort_opened">last opened first</string>
+    <string name="group_top">group by top folder</string>
+    <string name="group_top_hint">one line per top folder, with everything inside it</string>
+    <string name="every_folder">every folder</string>
+    <string name="every_folder_hint">one line per folder that holds books</string>
+    <string name="with_subfolders">with subfolders</string>
+    <string name="this_folder_only">this folder only</string>
+    <string name="sort_count">most books first</string>
+    <string name="sort_title">by title</string>
+    <string name="sort_added">last added first</string>
     <string name="opened_on">opened %1$s</string>
     <string name="downloading">downloading…</string>
     <string name="on_shelf">on the shelf</string>
@@ -106,6 +115,10 @@
     <plurals name="n_folders_chosen">
         <item quantity="one">%d folder chosen</item>
         <item quantity="other">%d folders chosen</item>
+    </plurals>
+    <plurals name="n_folders">
+        <item quantity="one">%d folder</item>
+        <item quantity="other">%d folders</item>
     </plurals>
     <plurals name="n_books">
         <item quantity="one">%d book</item>

@@ -39,8 +39,11 @@ network is used only if you set up a library on your own drive. It extends the b
   authors and cover pictures. An article is a chapter; back returns to the contents.
 * Optional library: the e-books kept on a drive, at a WebDAV address with a username and an
   application password (kDrive, Nextcloud, any WebDAV server) that the app may read and write,
-  listed by folder and then by name or by date, or all in one list by date, name, author or
-  last opened (the author is what precedes " - " in the file name, else the folder's name).
+  listed by folder — every folder, or the top folders only, each standing for everything inside
+  it (the library's menu) — or all in one list; a folder can show the books of its subfolders
+  too. Every list has its order: folders by name, latest book or number of books; books by date,
+  name, author or last opened (the author is what precedes " - " in the file name, else the
+  folder's name); the shelf by last opened, title or last added.
   Nothing is downloaded until you tap a book. The library syncs by itself when opened after
   ten minutes or more, and at once with the "sync now" row at its top; what is known stays on
   the screen while the drive is walked, new books appear, books gone from the drive go. Asked

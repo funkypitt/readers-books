@@ -10,10 +10,12 @@ enum class ThemeMode { DARK, LIGHT, SYSTEM }
 enum class FontChoice { SERIF, SANS, MONO }
 enum class TextSize { SMALL, MEDIUM, LARGE }
 enum class Align { LEFT, CENTER }
-/** Order of the books inside a library folder. */
-enum class LibrarySort { NAME, NEWEST, OLDEST }
-/** Order of the whole drive's books in one list: last change, name, author, last opened here. */
-enum class AllBooksSort { NEWEST, NAME, AUTHOR, OPENED }
+/** Order of a list of the library's books: last change, name, author, last opened here. */
+enum class BookSort { NEWEST, OLDEST, NAME, AUTHOR, OPENED }
+/** Order of the library's folders: name, latest book, number of books. */
+enum class FolderSort { NAME, NEWEST, COUNT }
+/** Order of the shelf: last opened (or added), title, last added. */
+enum class ShelfSort { OPENED, TITLE, ADDED }
 
 data class Settings(
     val theme: ThemeMode = ThemeMode.DARK,
@@ -34,8 +36,15 @@ data class Settings(
     val notesUrl: String = "",
     val notesUsername: String = "",
     val notesPassword: String = "",
-    val librarySort: LibrarySort = LibrarySort.NAME,
-    val allBooksSort: AllBooksSort = AllBooksSort.NEWEST,
+    /** Order of the books of a folder, of all books, of the folders, of the shelf. */
+    val librarySort: BookSort = BookSort.NAME,
+    val allBooksSort: BookSort = BookSort.NEWEST,
+    val folderSort: FolderSort = FolderSort.NAME,
+    val shelfSort: ShelfSort = ShelfSort.OPENED,
+    /** The library lists its top folders only, each standing for everything inside it. */
+    val libraryTopFolders: Boolean = false,
+    /** A folder of the library lists the books of the folders inside it too. */
+    val librarySubfolders: Boolean = false,
     /** The folders of the drive that make the library (paths below its top); empty = the whole drive. */
     val libraryFolders: List<String> = emptyList(),
     /** The folders of the drive left out of the library, with everything inside them, whatever is chosen. */
@@ -74,8 +83,12 @@ class Prefs(context: Context) {
         notesUrl = sp.getString("notes_url", "") ?: "",
         notesUsername = sp.getString("notes_username", "") ?: "",
         notesPassword = Secret.decrypt(sp.getString("notes_password", "") ?: ""),
-        librarySort = enumOr(sp.getString("library_sort", null), LibrarySort.NAME),
-        allBooksSort = enumOr(sp.getString("all_books_sort", null), AllBooksSort.NEWEST),
+        librarySort = enumOr(sp.getString("library_sort", null), BookSort.NAME),
+        allBooksSort = enumOr(sp.getString("all_books_sort", null), BookSort.NEWEST),
+        folderSort = enumOr(sp.getString("folder_sort", null), FolderSort.NAME),
+        shelfSort = enumOr(sp.getString("shelf_sort", null), ShelfSort.OPENED),
+        libraryTopFolders = sp.getBoolean("library_top_folders", false),
+        librarySubfolders = sp.getBoolean("library_subfolders", false),
         libraryFolders = (sp.getStringSet("library_folders", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
         libraryExcluded = (sp.getStringSet("library_excluded", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
         libraryFoldersAsked = sp.getBoolean("library_folders_asked", false),
@@ -92,8 +105,12 @@ class Prefs(context: Context) {
     fun setReaderSp(v: Int) = sp.edit().putInt("reader_sp", v).apply()
     fun setBookSerif(v: Boolean) = sp.edit().putBoolean("book_serif", v).apply()
     fun setKeepScreenOn(v: Boolean) = sp.edit().putBoolean("keep_screen_on", v).apply()
-    fun setLibrarySort(v: LibrarySort) = sp.edit().putString("library_sort", v.name).apply()
-    fun setAllBooksSort(v: AllBooksSort) = sp.edit().putString("all_books_sort", v.name).apply()
+    fun setLibrarySort(v: BookSort) = sp.edit().putString("library_sort", v.name).apply()
+    fun setAllBooksSort(v: BookSort) = sp.edit().putString("all_books_sort", v.name).apply()
+    fun setFolderSort(v: FolderSort) = sp.edit().putString("folder_sort", v.name).apply()
+    fun setShelfSort(v: ShelfSort) = sp.edit().putString("shelf_sort", v.name).apply()
+    fun setLibraryTopFolders(v: Boolean) = sp.edit().putBoolean("library_top_folders", v).apply()
+    fun setLibrarySubfolders(v: Boolean) = sp.edit().putBoolean("library_subfolders", v).apply()
     /** The folders that make the library; chosen, the choice is no longer to be offered. */
     fun setLibraryFolders(folders: List<String>) = sp.edit().putStringSet("library_folders", folders.filter { it.isNotEmpty() }.toSet()).putBoolean("library_folders_asked", true).apply()
     /** The folders left out of the library; a chosen folder that is now left out is no longer chosen. */

@@ -68,6 +68,15 @@
     <string name="all_books">все книги</string>
     <string name="sort_author">по автору</string>
     <string name="sort_opened">сначала недавно открытые</string>
+    <string name="group_top">группировать по верхней папке</string>
+    <string name="group_top_hint">одна строка на верхнюю папку, со всем, что внутри</string>
+    <string name="every_folder">каждая папка</string>
+    <string name="every_folder_hint">одна строка на каждую папку с книгами</string>
+    <string name="with_subfolders">с подпапками</string>
+    <string name="this_folder_only">только эта папка</string>
+    <string name="sort_count">сначала с наибольшим числом книг</string>
+    <string name="sort_title">по названию</string>
+    <string name="sort_added">сначала последние добавленные</string>
     <string name="opened_on">открыта %1$s</string>
     <string name="downloading">загрузка…</string>
     <string name="on_shelf">на полке</string>
@@ -108,6 +117,12 @@
         <item quantity="few">%d папки выбраны</item>
         <item quantity="many">%d папок выбрано</item>
         <item quantity="other">%d папки выбраны</item>
+    </plurals>
+    <plurals name="n_folders">
+        <item quantity="one">%d папка</item>
+        <item quantity="few">%d папки</item>
+        <item quantity="many">%d папок</item>
+        <item quantity="other">%d папки</item>
     </plurals>
     <plurals name="n_books">
         <item quantity="one">%d книга</item>

@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
                     Screen.Settings -> SettingsScreen(nav, app)
                     Screen.Library -> LibraryScreen(nav, app)
                     Screen.LibraryFolders -> LibraryFoldersScreen(nav, app)
-                    is Screen.Folder -> FolderScreen(nav, app, s.path)
+                    is Screen.Folder -> FolderScreen(nav, app, s.path, s.group)
                     Screen.AllBooks -> AllBooksScreen(nav, app)
                     is Screen.SendToLibrary -> SendToLibraryScreen(nav, app, s.id)
                 }

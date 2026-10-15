@@ -36,6 +36,7 @@ import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
 import com.freedomfighter.readersbooks.books.Entry
 import com.freedomfighter.readersbooks.data.FontChoice
+import com.freedomfighter.readersbooks.data.ShelfSort
 import com.freedomfighter.readersbooks.data.TextSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -52,7 +53,8 @@ sealed class Screen {
     data object Settings : Screen()
     data object Library : Screen()
     data object LibraryFolders : Screen()
-    data class Folder(val path: String) : Screen()
+    /** The books of one folder; a `group` is a top folder standing for everything inside it. */
+    data class Folder(val path: String, val group: Boolean = false) : Screen()
     data object AllBooks : Screen()
     /** Choosing the folder of the library a book of the shelf is sent to. */
     data class SendToLibrary(val id: String) : Screen()
@@ -95,7 +97,17 @@ fun ShelfScreen(nav: Nav, app: App) {
     val settings by app.prefs.settings.collectAsState()
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
+    var orderMenu by remember { mutableStateOf(false) }
     var bookMenu by remember { mutableStateOf<Entry?>(null) }
+    // the shelf's order: by last opened (or added), by title, or by last added
+    val shelf = remember(books, settings.shelfSort) {
+        when (settings.shelfSort) {
+            ShelfSort.OPENED -> books
+            ShelfSort.TITLE -> books.sortedBy { it.title.lowercase() }
+            ShelfSort.ADDED -> books.sortedByDescending { it.added }
+        }
+    }
+    val orderLabel = stringResource(when (settings.shelfSort) { ShelfSort.OPENED -> R.string.sort_opened; ShelfSort.TITLE -> R.string.sort_title; ShelfSort.ADDED -> R.string.sort_added })
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             nav.importing = true; nav.importFailed = false
@@ -114,7 +126,7 @@ fun ShelfScreen(nav: Nav, app: App) {
                 if (nav.importing) item { Small("…", Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 else if (nav.importFailed) item { Small(stringResource(R.string.reader_unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 if (books.isEmpty() && !nav.importing) item { Small(stringResource(R.string.empty_shelf), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
-                items(books, key = { it.id }) { b ->
+                items(shelf, key = { it.id }) { b ->
                     Column(Modifier.fillMaxWidth().pressable(onClick = { nav.push(if (b.magazine) Screen.Chapters(b.id) else Screen.Book(b.id)) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
                         T(b.title, size = typo.title, maxLines = 2)
                         Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened, stringResource(R.string.yesterday)), b.format.name.lowercase()).filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
@@ -126,10 +138,16 @@ fun ShelfScreen(nav: Nav, app: App) {
             if (settings.libraryConfigured) TextRow(stringResource(R.string.library), size = typo.title) { nav.push(Screen.Library) }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }, MenuItem(stringResource(R.string.library)) { nav.push(Screen.Library) }), onDismiss = { menu = false }, footer = listOf(
+        if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }, MenuItem(stringResource(R.string.library)) { nav.push(Screen.Library) },
+            MenuItem(stringResource(R.string.order), secondary = orderLabel) { orderMenu = true }), onDismiss = { menu = false }, footer = listOf(
             MenuItem(if (colors.isDark) stringResource(R.string.theme_light) else stringResource(R.string.theme_dark)) { app.prefs.toggleTheme(colors.isDark) },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ))
+        if (orderMenu) TextMenu(stringResource(R.string.order), listOf(
+            MenuItem(stringResource(R.string.sort_opened)) { app.prefs.setShelfSort(ShelfSort.OPENED) },
+            MenuItem(stringResource(R.string.sort_title)) { app.prefs.setShelfSort(ShelfSort.TITLE) },
+            MenuItem(stringResource(R.string.sort_added)) { app.prefs.setShelfSort(ShelfSort.ADDED) }
+        ), onDismiss = { orderMenu = false })
         bookMenu?.let { b ->
             TextMenu(b.title, listOf(
                 MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) },
