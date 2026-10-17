@@ -31,6 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -422,6 +426,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         var chosen by remember { mutableStateOf<Pair<Int, Int>?>(null) }        // a passage waiting for « highlight » or « comment »
         var commenting by remember { mutableStateOf<Highlight?>(null) }
         var opened by remember { mutableStateOf<Highlight?>(null) }
+        var viewing by remember { mutableStateOf<String?>(null) }      // a picture of the page on the whole screen
         var outerPos by remember { mutableStateOf(Offset.Zero) }
         var canvasPos by remember { mutableStateOf(Offset.Zero) }
 
@@ -437,6 +442,15 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             return null
         }
         fun highlightAt(pos: Offset): Highlight? = placeAt(pos)?.let { p -> shown.firstOrNull { it.chapter == chapter && p >= it.start && p < it.end } }
+        /** The picture of the page under a point of the screen, by its source, or null. */
+        fun pictureAt(pos: Offset): String? {
+            val x = pos.x - (canvasPos.x - outerPos.x)
+            val y = pos.y - (canvasPos.y - outerPos.y)
+            return pageDef.pieces.filterIsInstance<Piece.Picture>().firstOrNull { p ->
+                val left = (widthPx - p.width) / 2
+                x >= left && x < left + p.width && y >= p.y && y < p.y + p.height
+            }?.source
+        }
         fun write(h: Highlight) = app.highlights.change(entry, all.filter { it.id != h.id } + h)
         val marked = chosen ?: selecting?.let { Highlights.words(chapterText, it.first, it.second) }
         // Pictures of this page, decoded off the main thread; the canvas draws what has arrived.
@@ -454,8 +468,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                 .onGloballyPositioned { outerPos = it.positionInRoot() }
                 .pointerInput(layout, chapter, safePage, shown, selectable) {
                     // As on a reading tablet: a tap on the left third goes back, on the right third
-                    // forward, in the middle it opens the book's menu. A long press on a word begins
-                    // a highlight, which follows the finger until it lifts.
+                    // forward, in the middle it opens the book's menu — or, on a picture, the picture
+                    // on the whole screen. A long press on a word begins a highlight, which follows
+                    // the finger until it lifts.
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         var lifted = false
@@ -475,7 +490,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                                     h != null -> opened = h
                                     down.position.x < size.width / 3f -> prev()
                                     down.position.x > size.width * 2f / 3f -> next()
-                                    else -> onMenu()
+                                    else -> pictureAt(down.position)?.let { viewing = it } ?: onMenu()
                                 }
                             }
                             return@awaitEachGesture
@@ -554,6 +569,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             if (h.comment.isBlank()) TextMenu(null, items, onDismiss = { opened = null })
             else CommentSheet(h.comment, items, onDismiss = { opened = null })
         }
+        viewing?.let { source -> PictureViewer(images, source, onDismiss = { viewing = null }) }
         commenting?.let { h ->
             TextPrompt(stringResource(R.string.comment), h.comment,
                 onDone = { text -> write(h.copy(comment = text, modified = System.currentTimeMillis())); commenting = null },
@@ -582,6 +598,51 @@ private fun drawMarks(n: android.graphics.Canvas, piece: Piece.Lines, marks: Lis
             band.alpha = (m.strength * 255).toInt()
             n.drawRect(x1, top, x2, bottom, band)
             if (m.commented) n.drawRect(x1, bottom - density, x2, bottom + density, under)
+        }
+    }
+}
+
+/**
+ * A picture of the book on the whole screen, to read a table or a figure: fitted to the screen;
+ * two fingers zoom and move it, a double tap zooms in or back, a tap or Back closes it.
+ */
+@Composable
+private fun PictureViewer(images: ImageStore, source: String, onDismiss: () -> Unit) {
+    val colors = LocalColors.current
+    BackHandler(onBack = onDismiss)
+    val wanted = with(LocalDensity.current) { (LocalConfiguration.current.screenWidthDp.dp.toPx() * 3).toInt() }
+    val bitmap by produceState<Bitmap?>(null, source) { value = withContext(Dispatchers.IO) { images.bitmap(source, wanted) } }
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }      // where the picture's top left is, at the scale
+    Box(
+        Modifier.fillMaxSize().background(colors.bg)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() }, onDoubleTap = { at ->
+                    val to = if (scale > 1.01f) 1f else 2.5f
+                    offset = if (to == 1f) Offset.Zero else at - (at - offset) * (to / scale)
+                    scale = to
+                })
+            }
+            .pointerInput(Unit) {
+                detectTransformGestures { centroid, pan, zoom, _ ->
+                    val to = (scale * zoom).coerceIn(1f, 8f)
+                    offset = centroid - (centroid - offset) * (to / scale) + pan
+                    scale = to
+                    if (scale == 1f) offset = Offset.Zero
+                }
+            }
+    ) {
+        bitmap?.let { bmp ->
+            Image(
+                bmp.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars).windowInsetsPadding(WindowInsets.navigationBars)
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        scaleX = scale; scaleY = scale
+                        translationX = offset.x; translationY = offset.y
+                    }
+            )
         }
     }
 }

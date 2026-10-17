@@ -32,8 +32,11 @@ network is used only if you set up a library on your own drive. It extends the b
   highlights and the page you are at travel like those of any book of the library.
 * The position is kept per book and survives a change of text size or screen. The screen
   stays on while a page is open, until fifteen minutes after the last turn.
-* Pictures in EPUBs are shown in the page, scaled to the text width and never cut; styles and
-  footnote links are dropped. MOBI means PalmDoc; no PDF.
+* Pictures in EPUBs are shown in the page, scaled to the text width and never cut; a tap in
+  the middle of a picture shows it on the whole screen, to zoom with two fingers (a double tap
+  zooms in or back; a tap or back closes it) — the way to read a table. Styles and footnote
+  links are dropped; footnotes are small print. MOBI means PalmDoc; no PDF (a paper in PDF
+  becomes an EPUB in the desktop app, and comes here through the library).
 * A magazine issue (an EPUB whose contents page carries a section, a title and an author per
   article, as the newspapers pipeline writes them) opens on its contents: sections, titles,
   authors and cover pictures. An article is a chapter; back returns to the contents.

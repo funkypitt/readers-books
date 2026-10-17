@@ -379,7 +379,7 @@ object HtmlText {
             val c = m.groupValues[2].lowercase()
             when {
                 Regex("\\blead\\b|\\bchapo\\b|\\bstandfirst\\b").containsMatchIn(c) -> m.value + MARK + "L"
-                Regex("\\bcategory\\b|\\bauthor\\b|\\bbyline\\b|caption|\\bcredit\\b|\\bseparator\\b").containsMatchIn(c) -> m.value + MARK + "S"
+                Regex("\\bcategory\\b|\\bauthor\\b|\\bbyline\\b|caption|\\bcredit\\b|\\bseparator\\b|\\bfootnote\\b").containsMatchIn(c) -> m.value + MARK + "S"
                 else -> m.value
             }
         }
