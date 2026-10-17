@@ -136,4 +136,26 @@
     <string name="notes_password">password for the notes</string>
     <string name="same_as_library">same as the library</string>
     <string name="highlights_hint">Highlights: in a book from the library, press and hold a word, then slide over the passage to highlight it, with a comment if you like; a tap on a highlight shows its comment. They are kept next to the book on the drive, with the page you are at, and follow it to your other devices. The book\'s menu exports them. With the WebDAV address of the Reader\'s Notes folder given below, a note per book lists its highlights in Reader\'s Notes.</string>
+    <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
+    <string name="keep_on_phone">keep on the phone</string>
+    <string name="keep_on_phone_hint">downloaded now, to read without a connection; stays on the shelf</string>
+    <string name="unkeep">no longer keep on the phone</string>
+    <string name="kept">kept on the phone</string>
+    <string name="newer_on_drive">newer on the drive</string>
+    <string name="download_again">download again</string>
+    <string name="download_again_hint">the drive\'s copy is newer; the page you are at is kept</string>
+    <string name="remove_copy_hint">the book stays on the drive</string>
+    <string name="sort_size">largest first</string>
+    <string name="shelf_cleanup">books of the library leave the shelf</string>
+    <string name="cleanup_never">never</string>
+    <string name="cleanup_month">after a month unopened</string>
+    <string name="cleanup_three_months">after three months unopened</string>
+    <string name="cleanup_six_months">after six months unopened</string>
+    <string name="shelf_cleanup_hint">Unless kept on the phone (a book\'s menu). Their highlights and the page you are at are on the drive; a tap in the library fetches the book again.</string>
+    <string name="offline_drive">no connection to the drive</string>
+    <string name="offline_list">no connection to the drive — the list is as it was last synced</string>
+    <plurals name="n_kept">
+        <item quantity="one">%d kept on the phone</item>
+        <item quantity="other">%d kept on the phone</item>
+    </plurals>
 </resources>

@@ -5,6 +5,7 @@ import com.freedomfighter.readersbooks.books.Entry
 import com.freedomfighter.readersbooks.books.Highlight
 import com.freedomfighter.readersbooks.books.HighlightFile
 import com.freedomfighter.readersbooks.books.Highlights
+import com.freedomfighter.readersbooks.books.Library
 import com.freedomfighter.readersbooks.books.Position
 import com.freedomfighter.readersbooks.data.Settings
 import kotlinx.coroutines.CoroutineScope
@@ -77,8 +78,23 @@ class HighlightSync(private val app: App) {
     /** Where the book stands now, for the other devices: after a pause in the reading, and on leaving it. */
     fun place(id: String) { app.library.get(id)?.let { sync(it) } }
 
-    /** At the start: every book of the shelf that came from the library, so that the shelf says how far each one is wherever it was last read. */
-    fun shelf() { app.library.books.value.forEach { sync(it) } }
+    /**
+     * At the start: every book of the shelf that came from the library, so that the shelf says how
+     * far each one is wherever it was last read. The ones not opened for the time set leave the
+     * shelf — once the drive is known to hold their highlights and their place, and only then.
+     */
+    fun shelf() {
+        val stale = Library.stale(app.library.books.value, app.prefs.settings.value.shelfKeepDays).map { it.id }.toSet()
+        app.library.books.value.forEach { e ->
+            if (e.id in stale) scope.launch { if (settled(e)) app.library.remove(e.id) } else sync(e)
+        }
+    }
+
+    /** A book that left the shelf: its highlights go too, unless some were never sent (they will be, when the book is back). */
+    fun forget(entry: Entry) {
+        val k = key(entry)
+        if (!entry.fromLibrary || !load(k).dirty) File(dir, "$k.json").delete()
+    }
 
     /** The name of the book's file on the drive: kept when it was fetched, else read from its address, else from the list of the drive's books. */
     fun bookName(entry: Entry): String {
@@ -94,7 +110,7 @@ class HighlightSync(private val app: App) {
     private class Place(val address: String, val auth: String)
 
     /** A book fetched from the drive: the one kind that has highlights, and a place that travels. */
-    fun fromLibrary(entry: Entry): Boolean = entry.source?.let { it.startsWith("http://") || it.startsWith("https://") } == true
+    fun fromLibrary(entry: Entry): Boolean = entry.fromLibrary
 
     /**
      * Where the highlights of a book and the place it was left at are kept for every device: in
@@ -124,30 +140,50 @@ class HighlightSync(private val app: App) {
             if (!running.add(k)) { again += k; return }
         }
         scope.launch {
-            val before = load(k)
-            runCatching {
-                val place = sidecar(s, entry) ?: return@runCatching
-                val r = Sidecar.sync(place.address, place.auth, bookName(entry), before.highlights, position ?: positionOf(entry))
-                // The note is written again whenever the drive's highlights were: two devices that
-                // met there at the same moment leave a note that lacks what one of them had.
-                if (before.dirty || r.marks || r.merged != before.highlights) notes(s)?.let { n ->
-                    Sidecar.writeNote(n.folder, n.auth, bookName(entry), r.merged, Locale.getDefault().language)
-                }
-                if (load(k).highlights == before.highlights) {      // nothing was changed here meanwhile
-                    if (before.dirty || r.merged != before.highlights) save(k, r.merged, false)
-                    val reading = _current.value?.first == k
-                    if (r.merged != before.highlights && reading) _current.value = k to r.merged
-                    r.theirs?.let { there ->
-                        // Read later elsewhere: taken for the shelf, and for the page itself when the
-                        // book is just being opened. A book being read here is the newer place.
-                        if (!reading) app.library.savePosition(entry.id, there.chapter, there.charOffset, there.progress, there.modified)
-                        else if (opening) _arrived.value = k to there
-                    }
-                }
-            }
+            exchange(k, entry, s, position, opening)
             val rerun = synchronized(running) { running -= k; again.remove(k) }
             if (rerun) app.library.get(entry.id)?.let { sync(it) }
         }
+    }
+
+    /**
+     * The drive holds everything of this book — its highlights and the place it is at — so that
+     * the copy on the phone may go: the exchange run to its end, now. False when it could not be
+     * (no network, a change made meanwhile, another exchange under way): then nothing is sure.
+     */
+    suspend fun settled(entry: Entry): Boolean {
+        val k = key(entry)
+        val s = app.prefs.settings.value
+        if (sidecar(s, entry) == null) return false
+        synchronized(running) { if (!running.add(k)) return false }
+        val ok = exchange(k, entry, s, null, false)
+        val rerun = synchronized(running) { running -= k; again.remove(k) }
+        return ok && !rerun && !load(k).dirty
+    }
+
+    /** One exchange with the drive, for the book's highlights and place; true when it went through. */
+    private suspend fun exchange(k: String, entry: Entry, s: Settings, position: Position?, opening: Boolean): Boolean {
+        val before = load(k)
+        return runCatching {
+            val place = sidecar(s, entry) ?: return@runCatching
+            val r = Sidecar.sync(place.address, place.auth, bookName(entry), before.highlights, position ?: positionOf(entry))
+            // The note is written again whenever the drive's highlights were: two devices that
+            // met there at the same moment leave a note that lacks what one of them had.
+            if (before.dirty || r.marks || r.merged != before.highlights) notes(s)?.let { n ->
+                Sidecar.writeNote(n.folder, n.auth, bookName(entry), r.merged, Locale.getDefault().language)
+            }
+            if (load(k).highlights == before.highlights) {      // nothing was changed here meanwhile
+                if (before.dirty || r.merged != before.highlights) save(k, r.merged, false)
+                val reading = _current.value?.first == k
+                if (r.merged != before.highlights && reading) _current.value = k to r.merged
+                r.theirs?.let { there ->
+                    // Read later elsewhere: taken for the shelf, and for the page itself when the
+                    // book is just being opened. A book being read here is the newer place.
+                    if (!reading) app.library.savePosition(entry.id, there.chapter, there.charOffset, there.progress, there.modified)
+                    else if (opening) _arrived.value = k to there
+                }
+            }
+        }.isSuccess
     }
 
     /** The same text as the note, for the share menu. */

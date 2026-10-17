@@ -14,8 +14,11 @@ enum class Align { LEFT, CENTER }
 enum class BookSort { NEWEST, OLDEST, NAME, AUTHOR, OPENED }
 /** Order of the library's folders: name, latest book, number of books. */
 enum class FolderSort { NAME, NEWEST, COUNT }
-/** Order of the shelf: last opened (or added), title, last added. */
-enum class ShelfSort { OPENED, TITLE, ADDED }
+/** Order of the shelf: last opened (or added), title, last added, largest file. */
+enum class ShelfSort { OPENED, TITLE, ADDED, SIZE }
+
+/** How long a book of the library stays on the shelf unopened before it leaves by itself: never, or a month, three, six. */
+val SHELF_KEEP_DAYS = listOf(0, 30, 90, 180)
 
 data class Settings(
     val theme: ThemeMode = ThemeMode.DARK,
@@ -52,7 +55,9 @@ data class Settings(
     /** The choice of folders was offered once the drive was first walked. */
     val libraryFoldersAsked: Boolean = false,
     /** The folder of the drive a book of the shelf was last sent to; null when none was yet. */
-    val sendFolder: String? = null
+    val sendFolder: String? = null,
+    /** Days a book of the library may stay on the shelf unopened before it leaves by itself; 0 = it stays. Books kept on the phone always stay. */
+    val shelfKeepDays: Int = 0
 ) {
     /** An address with a login: that is what reaches the library. */
     val libraryConfigured: Boolean get() = url.isNotBlank() && username.isNotBlank() && password.isNotEmpty()
@@ -92,7 +97,8 @@ class Prefs(context: Context) {
         libraryFolders = (sp.getStringSet("library_folders", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
         libraryExcluded = (sp.getStringSet("library_excluded", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
         libraryFoldersAsked = sp.getBoolean("library_folders_asked", false),
-        sendFolder = sp.getString("send_folder", null)
+        sendFolder = sp.getString("send_folder", null),
+        shelfKeepDays = sp.getInt("shelf_keep_days", 0)
     )
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =
         name?.let { runCatching { enumValueOf<E>(it) }.getOrNull() } ?: default
@@ -120,6 +126,7 @@ class Prefs(context: Context) {
         sp.edit().putStringSet("library_excluded", excluded).putStringSet("library_folders", chosen).apply()
     }
     fun setSendFolder(folder: String) = sp.edit().putString("send_folder", folder).apply()
+    fun setShelfKeepDays(days: Int) = sp.edit().putInt("shelf_keep_days", days).apply()
     fun setLibraryFoldersAsked() = sp.edit().putBoolean("library_folders_asked", true).apply()
     /** The library account; the password is kept encrypted. Blank keys are kept as they are by the import, cleared here. Another drive: its folders are not these. */
     fun setLibrary(url: String, username: String, password: String) = sp.edit()

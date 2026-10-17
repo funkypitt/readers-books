@@ -46,6 +46,10 @@ import com.freedomfighter.readersbooks.remote.Unauthorized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -55,13 +59,25 @@ import java.time.format.FormatStyle
 // The library: a drive's e-books listed by folder or all at once, fetched one by one when tapped.
 // ---------------------------------------------------------------------------------------------
 
+/** The drive could not be reached at all, as against refusing or failing: nothing to do but wait for a connection. */
+fun offline(e: Throwable): Boolean = e is UnknownHostException || e is ConnectException || e is NoRouteToHostException || e is SocketTimeoutException
+
 @Composable
-private fun errorText(e: Throwable): String = when (e) {
-    is Unauthorized -> stringResource(R.string.wrong_login)
+private fun errorText(e: Throwable): String = when {
+    e is Unauthorized -> stringResource(R.string.wrong_login)
+    offline(e) -> stringResource(R.string.offline_list)
     else -> stringResource(R.string.library_error, e.message ?: e.javaClass.simpleName)
 }
 
-private fun sizeLabel(bytes: Long): String = when {
+/** Why a book could not be fetched. */
+@Composable
+private fun fetchError(e: Throwable): String = when {
+    e is Unauthorized -> stringResource(R.string.wrong_login)
+    offline(e) -> stringResource(R.string.offline_drive)
+    else -> stringResource(R.string.download_failed, e.message ?: stringResource(R.string.reader_unsupported))
+}
+
+fun sizeLabel(bytes: Long): String = when {
     bytes <= 0L -> ""
     bytes < 1_000_000L -> "${(bytes / 1000).coerceAtLeast(1)} KB"
     else -> "%.1f MB".format(bytes / 1e6)
@@ -226,27 +242,28 @@ fun AllBooksScreen(nav: Nav, app: App) {
 /**
  * A list of the drive's books under a title, with the current order named above it and the
  * orders offered in the ⋯ menu (`footer` = what else the menu offers). Tap fetches the book
- * (once) and opens it. `showFolder` names each book's folder on its line, as seen from `base`;
- * `opened` adds when this app last opened each book.
+ * (once) and opens it; held long, a book is fetched to be kept on the phone, or its copy on the
+ * shelf is kept, renewed from the drive or removed. `showFolder` names each book's folder on its
+ * line, as seen from `base`; `opened` adds when this app last opened each book.
  */
 @Composable
 private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, footer: List<MenuItem> = emptyList(), showFolder: Boolean = false, base: String = "", opened: Map<String, Long>? = null) {
     val s by app.prefs.settings.collectAsState()
     val shelf by app.library.books.collectAsState()
+    val pending by app.downloads.pending.collectAsState()
+    val background by app.downloads.failed.collectAsState()
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
-    var fetching by remember { mutableStateOf<String?>(null) }
+    var bookMenu by remember { mutableStateOf<RemoteBook?>(null) }
     var failed by remember { mutableStateOf<Throwable?>(null) }
-    val unsupported = stringResource(R.string.reader_unsupported)
     val rootFolder = stringResource(R.string.root_folder)
     val yesterday = stringResource(R.string.yesterday)
     fun open(b: RemoteBook) {
         app.library.bySource(b.ref)?.let { e -> nav.push(if (e.magazine) Screen.Chapters(e.id) else Screen.Book(e.id)); return }
-        if (fetching != null) return
-        fetching = b.ref; failed = null
+        if (b.ref in pending) return
+        failed = null
         scope.launch {
-            val r = runCatching { withContext(Dispatchers.IO) { val f = app.remote.fetch(s, b); app.library.importFile(f, b.name, b.ref).getOrThrow() } }
-            fetching = null
+            val r = app.downloads.fetch(s, b)
             r.onSuccess { e -> nav.push(if (e.magazine) Screen.Chapters(e.id) else Screen.Book(e.id)) }
             r.onFailure { failed = it }
         }
@@ -257,16 +274,18 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
             ScreenTitle(title, onBack = { nav.pop() }, trailing = "⋯", onTrailing = { menu = true })
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
                 item { Small(order, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
-                failed?.let { e -> item { Small(if (e is Unauthorized) stringResource(R.string.wrong_login) else stringResource(R.string.download_failed, e.message ?: unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
+                failed?.let { e -> item { Small(fetchError(e), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
+                background?.let { (b, e) -> item { Small(b.title + " — " + fetchError(e), Modifier.noRippleClickable { app.downloads.seen() }.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
                 items(books, key = { it.ref }) { b ->
-                    val onShelf = shelf.any { it.source == b.ref }
+                    val copy = shelf.firstOrNull { it.source == b.ref }
                     val openedLabel = opened?.get(b.ref)?.let { stringResource(R.string.opened_on, whenLabel(it, yesterday)) } ?: ""
                     val line = listOf(
-                        if (fetching == b.ref) stringResource(R.string.downloading) else if (onShelf) stringResource(R.string.on_shelf) else "",
+                        if (b.ref in pending) stringResource(R.string.downloading) else if (copy?.kept == true) stringResource(R.string.kept) else if (copy != null) stringResource(R.string.on_shelf) else "",
+                        if (copy != null && app.downloads.newer(copy, b)) stringResource(R.string.newer_on_drive) else "",
                         openedLabel, if (showFolder) Folders.relative(base, b.folder).ifEmpty { if (base.isEmpty()) rootFolder else "" } else "",
                         dateLabel(b.modified), b.extension, sizeLabel(b.size)
                     ).filter { it.isNotEmpty() }.joinToString(" · ")
-                    Column(Modifier.fillMaxWidth().noRippleClickable { open(b) }.padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
+                    Column(Modifier.fillMaxWidth().pressable(onClick = { open(b) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
                         T(b.title, size = LocalTypo.current.title, maxLines = 2)
                         Small(line, maxLines = 1)
                     }
@@ -275,6 +294,19 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
         if (menu) TextMenu(stringResource(R.string.order), orders, onDismiss = { menu = false }, footer = footer)
+        // a book held long: on the phone to stay, or its copy there dealt with
+        bookMenu?.let { b ->
+            val copy = shelf.firstOrNull { it.source == b.ref }
+            TextMenu(b.title, buildList {
+                add(MenuItem(stringResource(R.string.read)) { open(b) })
+                if (copy == null) add(MenuItem(stringResource(R.string.keep_on_phone), secondary = stringResource(R.string.keep_on_phone_hint)) { app.downloads.keep(s, b) })
+                else {
+                    add(MenuItem(stringResource(if (copy.kept) R.string.unkeep else R.string.keep_on_phone)) { app.library.setKept(copy.id, !copy.kept) })
+                    if (app.downloads.newer(copy, b)) add(MenuItem(stringResource(R.string.download_again), secondary = stringResource(R.string.download_again_hint)) { app.downloads.keep(s, b, again = true) })
+                    add(MenuItem(stringResource(R.string.remove), secondary = stringResource(R.string.remove_copy_hint)) { app.library.remove(copy.id) })
+                }
+            }, onDismiss = { bookMenu = null })
+        }
     }
 }
 

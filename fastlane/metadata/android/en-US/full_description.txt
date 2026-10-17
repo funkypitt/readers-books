@@ -6,6 +6,6 @@ Formats: EPUB, MOBI (PalmDoc), FB2 and plain text. Pictures are shown in the pag
 
 A standard home-screen widget for any launcher shows the book being read; a tap carries on at the current page. Reader's Launcher shows the same on its book tile.
 
-No network, no account, no tracking. English, French, German, Spanish, Portuguese, Russian. Free software, MIT licence.
+Optional library: the e-books on your own drive (WebDAV: kDrive, Nextcloud…), listed by folder, a book downloaded when tapped or kept on the phone to read without a connection; highlights, comments and the page you are at travel with each book. The shelf says how much room the books take and can let go of those not opened for months. No account, no tracking; the network only for that library. English, French, German, Spanish, Portuguese, Russian. Free software, MIT licence.
 
 Pierre Gallaz · developed with Claude Code

@@ -142,4 +142,26 @@
     <string name="notes_password">пароль для заметок</string>
     <string name="same_as_library">как у библиотеки</string>
     <string name="highlights_hint">Выделения: в книге из библиотеки нажмите и удерживайте слово, затем проведите по отрывку, чтобы выделить его, при желании с комментарием; касание выделения показывает комментарий. Они хранятся рядом с книгой на диске вместе со страницей, на которой вы остановились, и следуют за ней на другие ваши устройства. Меню книги их экспортирует. Если ниже указан адрес WebDAV папки Reader\'s Notes, заметка для каждой книги перечисляет её выделения в Reader\'s Notes.</string>
+    <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
+    <string name="keep_on_phone">хранить на телефоне</string>
+    <string name="keep_on_phone_hint">загружается сейчас, чтобы читать без сети; остаётся на полке</string>
+    <string name="unkeep">больше не хранить на телефоне</string>
+    <string name="kept">хранится на телефоне</string>
+    <string name="newer_on_drive">на диске новее</string>
+    <string name="download_again">загрузить снова</string>
+    <string name="download_again_hint">копия на диске новее; страница, на которой вы остановились, сохраняется</string>
+    <string name="remove_copy_hint">книга остаётся на диске</string>
+    <string name="sort_size">сначала самые большие</string>
+    <string name="shelf_cleanup">книги библиотеки покидают полку</string>
+    <string name="cleanup_never">никогда</string>
+    <string name="cleanup_month">после месяца без открытия</string>
+    <string name="cleanup_three_months">после трёх месяцев без открытия</string>
+    <string name="cleanup_six_months">после шести месяцев без открытия</string>
+    <string name="shelf_cleanup_hint">Кроме хранимых на телефоне (меню книги). Их выделения и страница, на которой вы остановились, лежат на диске; касание в библиотеке загружает книгу снова.</string>
+    <string name="offline_drive">нет соединения с диском</string>
+    <string name="offline_list">нет соединения с диском — список таков, каким был при последней синхронизации</string>
+    <plurals name="n_kept">
+        <item quantity="one">%d хранится на телефоне</item>
+        <item quantity="other">%d хранятся на телефоне</item>
+    </plurals>
 </resources>

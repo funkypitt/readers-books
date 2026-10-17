@@ -6,6 +6,6 @@ Formats : EPUB, MOBI (PalmDoc), FB2 et texte brut. Les images sont affichées da
 
 Un widget standard pour n'importe quel lanceur montre le livre en cours ; un tap reprend à la page courante. Reader's Launcher montre la même chose sur sa tuile livre.
 
-Pas de réseau, pas de compte, pas de pistage. Anglais, français, allemand, espagnol, portugais, russe. Logiciel libre, licence MIT.
+Bibliothèque en option : les e-books de votre propre drive (WebDAV : kDrive, Nextcloud…), listés par dossier, un livre téléchargé quand on le touche ou gardé sur le téléphone pour lire sans connexion ; surlignages, commentaires et page où vous êtes voyagent avec chaque livre. L'étagère dit la place que prennent les livres et peut laisser partir ceux qui n'ont pas été ouverts depuis des mois. Pas de compte, pas de pistage ; le réseau seulement pour cette bibliothèque. Anglais, français, allemand, espagnol, portugais, russe. Logiciel libre, licence MIT.
 
 Pierre Gallaz · développé avec Claude Code

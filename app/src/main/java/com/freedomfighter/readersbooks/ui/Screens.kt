@@ -36,6 +36,7 @@ import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
 import com.freedomfighter.readersbooks.books.Entry
 import com.freedomfighter.readersbooks.data.FontChoice
+import com.freedomfighter.readersbooks.data.SHELF_KEEP_DAYS
 import com.freedomfighter.readersbooks.data.ShelfSort
 import com.freedomfighter.readersbooks.data.TextSize
 import kotlinx.coroutines.Dispatchers
@@ -99,15 +100,20 @@ fun ShelfScreen(nav: Nav, app: App) {
     var menu by remember { mutableStateOf(false) }
     var orderMenu by remember { mutableStateOf(false) }
     var bookMenu by remember { mutableStateOf<Entry?>(null) }
-    // the shelf's order: by last opened (or added), by title, or by last added
+    // the shelf's order: by last opened (or added), by title, by last added, or by size
     val shelf = remember(books, settings.shelfSort) {
         when (settings.shelfSort) {
             ShelfSort.OPENED -> books
             ShelfSort.TITLE -> books.sortedBy { it.title.lowercase() }
             ShelfSort.ADDED -> books.sortedByDescending { it.added }
+            ShelfSort.SIZE -> books.sortedByDescending { it.size }
         }
     }
-    val orderLabel = stringResource(when (settings.shelfSort) { ShelfSort.OPENED -> R.string.sort_opened; ShelfSort.TITLE -> R.string.sort_title; ShelfSort.ADDED -> R.string.sort_added })
+    val orderLabel = shelfSortLabel(settings.shelfSort)
+    // what the shelf takes on the phone, and how much of it is there to stay
+    val kept = books.count { it.kept }
+    val room = listOfNotNull(pluralStringResource(R.plurals.n_books, books.size, books.size), sizeLabel(books.sumOf { it.size }).ifEmpty { null },
+        if (kept > 0) pluralStringResource(R.plurals.n_kept, kept, kept) else null).joinToString(" · ")
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             nav.importing = true; nav.importFailed = false
@@ -126,10 +132,12 @@ fun ShelfScreen(nav: Nav, app: App) {
                 if (nav.importing) item { Small("…", Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 else if (nav.importFailed) item { Small(stringResource(R.string.reader_unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 if (books.isEmpty() && !nav.importing) item { Small(stringResource(R.string.empty_shelf), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
+                else item { Small(room, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
                 items(shelf, key = { it.id }) { b ->
                     Column(Modifier.fillMaxWidth().pressable(onClick = { nav.push(if (b.magazine) Screen.Chapters(b.id) else Screen.Book(b.id)) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
                         T(b.title, size = typo.title, maxLines = 2)
-                        Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened, stringResource(R.string.yesterday)), b.format.name.lowercase()).filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
+                        Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened, stringResource(R.string.yesterday)), b.format.name.lowercase(), sizeLabel(b.size),
+                            if (b.kept) stringResource(R.string.kept) else "").filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
                     }
                 }
             }
@@ -143,20 +151,26 @@ fun ShelfScreen(nav: Nav, app: App) {
             MenuItem(if (colors.isDark) stringResource(R.string.theme_light) else stringResource(R.string.theme_dark)) { app.prefs.toggleTheme(colors.isDark) },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ))
-        if (orderMenu) TextMenu(stringResource(R.string.order), listOf(
-            MenuItem(stringResource(R.string.sort_opened)) { app.prefs.setShelfSort(ShelfSort.OPENED) },
-            MenuItem(stringResource(R.string.sort_title)) { app.prefs.setShelfSort(ShelfSort.TITLE) },
-            MenuItem(stringResource(R.string.sort_added)) { app.prefs.setShelfSort(ShelfSort.ADDED) }
-        ), onDismiss = { orderMenu = false })
+        if (orderMenu) TextMenu(stringResource(R.string.order), ShelfSort.entries.map { o -> MenuItem(shelfSortLabel(o)) { app.prefs.setShelfSort(o) } }, onDismiss = { orderMenu = false })
         bookMenu?.let { b ->
-            TextMenu(b.title, listOf(
-                MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) },
-                MenuItem(stringResource(if (b.magazine) R.string.contents else R.string.chapters)) { nav.push(Screen.Chapters(b.id)) },
-                MenuItem(stringResource(R.string.remove)) { app.library.remove(b.id) }
-            ) + (if (canSend(settings, b)) listOf(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(b.id)) }) else emptyList()), onDismiss = { bookMenu = null })
+            TextMenu(b.title, buildList {
+                add(MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) })
+                add(MenuItem(stringResource(if (b.magazine) R.string.contents else R.string.chapters)) { nav.push(Screen.Chapters(b.id)) })
+                // a book of the library: kept on the phone, or free to go when the shelf is cleared; removed, it stays on the drive
+                if (b.fromLibrary) add(MenuItem(stringResource(if (b.kept) R.string.unkeep else R.string.keep_on_phone)) { app.library.setKept(b.id, !b.kept) })
+                add(MenuItem(stringResource(R.string.remove), secondary = if (b.fromLibrary) stringResource(R.string.remove_copy_hint) else null) { app.library.remove(b.id) })
+                if (canSend(settings, b)) add(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(b.id)) })
+            }, onDismiss = { bookMenu = null })
         }
     }
 }
+
+@Composable
+private fun shelfSortLabel(sort: ShelfSort) = stringResource(when (sort) { ShelfSort.OPENED -> R.string.sort_opened; ShelfSort.TITLE -> R.string.sort_title; ShelfSort.ADDED -> R.string.sort_added; ShelfSort.SIZE -> R.string.sort_size })
+
+/** How long a book of the library stays on the shelf unopened, as the settings say it. */
+@Composable
+fun keepDaysLabel(days: Int) = stringResource(when (days) { 0 -> R.string.cleanup_never; 30 -> R.string.cleanup_month; 90 -> R.string.cleanup_three_months; else -> R.string.cleanup_six_months })
 
 @Composable
 fun SettingsScreen(nav: Nav, app: App) {
@@ -190,6 +204,11 @@ fun SettingsScreen(nav: Nav, app: App) {
                     if (s.libraryFolders.isEmpty()) stringResource(R.string.whole_drive) else pluralStringResource(R.plurals.n_folders_chosen, s.libraryFolders.size, s.libraryFolders.size),
                     if (s.libraryExcluded.isEmpty()) null else pluralStringResource(R.plurals.n_folders_left_out, s.libraryExcluded.size, s.libraryExcluded.size)
                 ).joinToString(" · ")) { nav.push(Screen.LibraryFolders) }
+                if (s.libraryConfigured) {
+                    // books of the library not opened for a while leave the shelf by themselves — tap for the next span
+                    TextRow(keepDaysLabel(s.shelfKeepDays), secondary = stringResource(R.string.shelf_cleanup)) { app.prefs.setShelfKeepDays(SHELF_KEEP_DAYS[(SHELF_KEEP_DAYS.indexOf(s.shelfKeepDays) + 1) % SHELF_KEEP_DAYS.size]) }
+                    Small(stringResource(R.string.shelf_cleanup_hint), Modifier.padding(horizontal = rowPadH).padding(bottom = 4.dp), maxLines = 6)
+                }
                 CredentialsRows(app, s, export)
                 if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.prefs.setLibrary("", "", "") }
                 Rule(Modifier.padding(vertical = 8.dp))

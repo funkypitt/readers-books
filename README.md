@@ -47,7 +47,16 @@ network is used only if you set up a library on your own drive. It extends the b
   too. Every list has its order: folders by name, latest book or number of books; books by date,
   name, author or last opened (the author is what precedes " - " in the file name, else the
   folder's name); the shelf by last opened, title or last added.
-  Nothing is downloaded until you tap a book. The library syncs by itself when opened after
+  Nothing is downloaded until you tap a book; a book held long in a list is downloaded to be
+  kept on the phone, to read without a connection — several in a row before a trip. The shelf
+  is what is on the phone: it says how many books, how much room they take, how many are kept;
+  it can be ordered by size. A book's menu keeps it on the phone or lets it go, and removes
+  its copy (the book stays on the drive). In the settings, the books of the library not opened
+  for a month, three or six leave the shelf by themselves — once the drive is known to hold
+  their highlights and their place — unless kept; nothing leaves unless you ask. A book whose
+  copy on the drive is newer says so, and its menu downloads it again, the page you are at kept.
+  Without a connection, the library shows its last list and says so; what is on the shelf reads
+  as ever. The library syncs by itself when opened after
   ten minutes or more, and at once with the "sync now" row at its top; what is known stays on
   the screen while the drive is walked, new books appear, books gone from the drive go. Asked
   for by hand, a sync keeps going while the phone is locked (a quiet notification counts

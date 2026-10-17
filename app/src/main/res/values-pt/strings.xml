@@ -137,4 +137,26 @@
     <string name="notes_password">palavra-passe para as notas</string>
     <string name="same_as_library">como a biblioteca</string>
     <string name="highlights_hint">Destaques: num livro da biblioteca, mantenha uma palavra premida e deslize sobre a passagem para a destacar, com um comentário se quiser; um toque num destaque mostra o seu comentário. Ficam ao lado do livro na drive, com a página em que está, e acompanham-no nos seus outros aparelhos. O menu do livro exporta-os. Com o endereço WebDAV da pasta do Reader\'s Notes indicado abaixo, uma nota por livro reúne os seus destaques no Reader\'s Notes.</string>
+    <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
+    <string name="keep_on_phone">manter no telemóvel</string>
+    <string name="keep_on_phone_hint">descarregado agora, para ler sem ligação; fica na estante</string>
+    <string name="unkeep">deixar de manter no telemóvel</string>
+    <string name="kept">mantido no telemóvel</string>
+    <string name="newer_on_drive">mais recente na drive</string>
+    <string name="download_again">descarregar de novo</string>
+    <string name="download_again_hint">a cópia da drive é mais recente; a página em que está mantém-se</string>
+    <string name="remove_copy_hint">o livro fica na drive</string>
+    <string name="sort_size">os maiores primeiro</string>
+    <string name="shelf_cleanup">os livros da biblioteca saem da estante</string>
+    <string name="cleanup_never">nunca</string>
+    <string name="cleanup_month">após um mês sem abrir</string>
+    <string name="cleanup_three_months">após três meses sem abrir</string>
+    <string name="cleanup_six_months">após seis meses sem abrir</string>
+    <string name="shelf_cleanup_hint">Salvo se forem mantidos no telemóvel (menu de um livro). Os seus destaques e a página em que está ficam na drive; um toque na biblioteca volta a obter o livro.</string>
+    <string name="offline_drive">sem ligação à drive</string>
+    <string name="offline_list">sem ligação à drive — a lista é a da última sincronização</string>
+    <plurals name="n_kept">
+        <item quantity="one">%d mantido no telemóvel</item>
+        <item quantity="other">%d mantidos no telemóvel</item>
+    </plurals>
 </resources>

@@ -128,7 +128,8 @@ fun BookScreen(nav: Nav, app: App, id: String) {
                     add(MenuItem(stringResource(R.string.larger_text), "$current → ${(current + 2).coerceAtMost(40)}") { app.prefs.setReaderSp((current + 2).coerceAtMost(40)) })
                     add(MenuItem(stringResource(R.string.smaller_text), "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) })
                     add(MenuItem(stringResource(R.string.book_text), stringResource(if (settings.bookSerif) R.string.font_serif else R.string.font_sans) + " → " + stringResource(if (settings.bookSerif) R.string.font_sans else R.string.font_serif)) { app.prefs.setBookSerif(!settings.bookSerif) })
-                    add(MenuItem(stringResource(R.string.remove)) { app.library.remove(id); nav.pop() })
+                    if (entry.fromLibrary) add(MenuItem(stringResource(if (entry.kept) R.string.unkeep else R.string.keep_on_phone)) { app.library.setKept(id, !entry.kept) })
+                    add(MenuItem(stringResource(R.string.remove), secondary = if (entry.fromLibrary) stringResource(R.string.remove_copy_hint) else null) { app.library.remove(id); nav.pop() })
                     if (canSend(settings, entry)) add(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(id)) })
                     if (highlighted) add(MenuItem(stringResource(R.string.export_highlights)) {
                         runCatching {

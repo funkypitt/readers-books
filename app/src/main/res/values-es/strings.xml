@@ -137,4 +137,26 @@
     <string name="notes_password">contraseña para las notas</string>
     <string name="same_as_library">como la biblioteca</string>
     <string name="highlights_hint">Resaltados: en un libro de la biblioteca, mantén pulsada una palabra y desliza sobre el pasaje para resaltarlo, con un comentario si quieres; un toque en un resaltado muestra su comentario. Se guardan junto al libro en el drive, con la página en la que estás, y lo siguen en tus otros dispositivos. El menú del libro los exporta. Con la dirección WebDAV de la carpeta de Reader\'s Notes indicada abajo, una nota por libro recoge sus resaltados en Reader\'s Notes.</string>
+    <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
+    <string name="keep_on_phone">guardar en el teléfono</string>
+    <string name="keep_on_phone_hint">descargado ahora, para leer sin conexión; se queda en la estantería</string>
+    <string name="unkeep">dejar de guardar en el teléfono</string>
+    <string name="kept">guardado en el teléfono</string>
+    <string name="newer_on_drive">más reciente en el drive</string>
+    <string name="download_again">descargar de nuevo</string>
+    <string name="download_again_hint">la copia del drive es más reciente; la página en la que está se conserva</string>
+    <string name="remove_copy_hint">el libro se queda en el drive</string>
+    <string name="sort_size">los más grandes primero</string>
+    <string name="shelf_cleanup">los libros de la biblioteca dejan la estantería</string>
+    <string name="cleanup_never">nunca</string>
+    <string name="cleanup_month">tras un mes sin abrir</string>
+    <string name="cleanup_three_months">tras tres meses sin abrir</string>
+    <string name="cleanup_six_months">tras seis meses sin abrir</string>
+    <string name="shelf_cleanup_hint">Salvo si se guardan en el teléfono (menú de un libro). Sus resaltados y la página en la que está se quedan en el drive; un toque en la biblioteca vuelve a obtener el libro.</string>
+    <string name="offline_drive">sin conexión con el drive</string>
+    <string name="offline_list">sin conexión con el drive — la lista es la de la última sincronización</string>
+    <plurals name="n_kept">
+        <item quantity="one">%d guardado en el teléfono</item>
+        <item quantity="other">%d guardados en el teléfono</item>
+    </plurals>
 </resources>
