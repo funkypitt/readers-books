@@ -125,4 +125,17 @@ class FoldersTest {
         val opened = mapOf("ref:Books/novels/Dune.epub" to 5L, "ref:Books/science/Cosmos.epub" to 9L)
         assertEquals(listOf("Cosmos.epub", "Dune.epub", "Carl Sagan - Contact.epub", "Matilda.epub"), Folders.sortBooks(b, BookSort.OPENED, opened).map { it.name })
     }
+
+    @Test fun searchFindsEveryWordInNameAuthorOrFolder() {
+        val b = listOf(book("Books/1950s", "Simenon - Maigret et la vieille dame.epub"), book("Books/Élie", "Les Thibault.epub"), book("", "Dune.epub"))
+        assertEquals(emptyList<String>(), Folders.search(b, "").map { it.name })
+        assertEquals(emptyList<String>(), Folders.search(b, "   ").map { it.name })
+        assertEquals(listOf("Simenon - Maigret et la vieille dame.epub"), Folders.search(b, "MAIGRET 1950").map { it.name })   // case, folder
+        assertEquals(listOf("Simenon - Maigret et la vieille dame.epub"), Folders.search(b, "simenon dame").map { it.name })   // author, two words
+        assertEquals(listOf("Les Thibault.epub"), Folders.search(b, "elie").map { it.name })   // accent in the folder
+        assertEquals(listOf("Les Thibault.epub"), Folders.search(b, "Thibault, les").map { it.name })   // punctuation
+        assertEquals(listOf("Dune.epub"), Folders.search(b, "dune").map { it.name })   // a book of the root
+        assertEquals(emptyList<String>(), Folders.search(b, "maigret dune").map { it.name })   // every word, in one book
+        assertEquals("l etranger d albert camus", Folders.plain("L’Étranger — d'Albert_Camus."))
+    }
 }

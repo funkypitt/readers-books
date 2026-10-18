@@ -66,6 +66,9 @@
     <string name="sort_newest">mais recentes primeiro</string>
     <string name="sort_oldest">mais antigos primeiro</string>
     <string name="all_books">todos os livros</string>
+    <string name="search">pesquisar</string>
+    <string name="search_hint">título, autor ou pasta</string>
+    <string name="no_book_matches">nenhum livro corresponde</string>
     <string name="sort_author">por autor</string>
     <string name="sort_opened">os últimos abertos primeiro</string>
     <string name="group_top">agrupar por pasta principal</string>

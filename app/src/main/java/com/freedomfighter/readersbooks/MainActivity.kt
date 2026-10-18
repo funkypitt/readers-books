@@ -15,6 +15,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.freedomfighter.readersbooks.ui.AllBooksScreen
+import com.freedomfighter.readersbooks.ui.SearchScreen
 import com.freedomfighter.readersbooks.ui.BookChaptersScreen
 import com.freedomfighter.readersbooks.ui.BookScreen
 import com.freedomfighter.readersbooks.ui.FolderScreen
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
                     Screen.LibraryFolders -> LibraryFoldersScreen(nav, app)
                     is Screen.Folder -> FolderScreen(nav, app, s.path, s.group)
                     Screen.AllBooks -> AllBooksScreen(nav, app)
+                    Screen.Search -> SearchScreen(nav, app)
                     is Screen.SendToLibrary -> SendToLibraryScreen(nav, app, s.id)
                 }
             }

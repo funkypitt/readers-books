@@ -66,6 +66,9 @@
     <string name="sort_newest">les plus récents d\'abord</string>
     <string name="sort_oldest">les plus anciens d\'abord</string>
     <string name="all_books">tous les livres</string>
+    <string name="search">rechercher</string>
+    <string name="search_hint">titre, auteur ou dossier</string>
+    <string name="no_book_matches">aucun livre ne correspond</string>
     <string name="sort_author">par auteur</string>
     <string name="sort_opened">les derniers ouverts d\'abord</string>
     <string name="group_top">regrouper par dossier principal</string>

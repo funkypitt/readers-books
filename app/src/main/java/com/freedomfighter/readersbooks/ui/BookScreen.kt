@@ -443,6 +443,26 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             return null
         }
         fun highlightAt(pos: Offset): Highlight? = placeAt(pos)?.let { p -> shown.firstOrNull { it.chapter == chapter && p >= it.start && p < it.end } }
+        /**
+         * True when some of the highlight lies, on this page, in the middle third of the screen,
+         * where a tap can open it without taking a page-turn zone: a whole page highlighted must
+         * still turn. `left`/`right` bound that third, in the canvas's own x.
+         */
+        fun reachesMiddle(h: Highlight, left: Float, right: Float): Boolean {
+            for (piece in pageDef.pieces) {
+                if (piece !is Piece.Lines) continue
+                val layout = piece.layout
+                for (l in piece.first..piece.last) {
+                    val first = piece.toChapter(layout.getLineStart(l))
+                    val last = piece.toChapter(layout.getLineEnd(l))
+                    if (h.end <= first || h.start >= last) continue
+                    val x1 = layout.getPrimaryHorizontal(piece.toLaid(maxOf(h.start, first)))
+                    val x2 = if (h.end < last) layout.getPrimaryHorizontal(piece.toLaid(minOf(h.end, last))) else layout.getLineMax(l) + layout.getLineLeft(l)
+                    if (minOf(x1, x2) < right && maxOf(x1, x2) > left) return true
+                }
+            }
+            return false
+        }
         /** The picture of the page under a point of the screen, by its source, or null. */
         fun pictureAt(pos: Offset): String? {
             val x = pos.x - (canvasPos.x - outerPos.x)
@@ -470,8 +490,10 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                 .pointerInput(layout, chapter, safePage, shown, selectable) {
                     // As on a reading tablet: a tap on the left third goes back, on the right third
                     // forward, in the middle it opens the book's menu — or, on a picture, the picture
-                    // on the whole screen. A long press on a word begins a highlight, which follows
-                    // the finger until it lifts.
+                    // on the whole screen. A tap on a highlight opens it, except in a page-turn zone
+                    // when the highlight also runs through the middle, where it can be opened: a
+                    // whole page highlighted still turns. A long press on a word begins a highlight,
+                    // which follows the finger until it lifts.
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         var lifted = false
@@ -487,10 +509,12 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                         if (!held) {
                             if (lifted && !moved) {
                                 val h = highlightAt(down.position)
+                                val zone = when { down.position.x < size.width / 3f -> -1; down.position.x > size.width * 2f / 3f -> 1; else -> 0 }
+                                val dx = canvasPos.x - outerPos.x
                                 when {
-                                    h != null -> opened = h
-                                    down.position.x < size.width / 3f -> prev()
-                                    down.position.x > size.width * 2f / 3f -> next()
+                                    h != null && (zone == 0 || !reachesMiddle(h, size.width / 3f - dx, size.width * 2f / 3f - dx)) -> opened = h
+                                    zone < 0 -> prev()
+                                    zone > 0 -> next()
                                     else -> pictureAt(down.position)?.let { viewing = it } ?: onMenu()
                                 }
                             }

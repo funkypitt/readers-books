@@ -57,6 +57,8 @@ sealed class Screen {
     /** The books of one folder; a `group` is a top folder standing for everything inside it. */
     data class Folder(val path: String, val group: Boolean = false) : Screen()
     data object AllBooks : Screen()
+    /** The books of the library whose name, author or folder carries what is typed. */
+    data object Search : Screen()
     /** Choosing the folder of the library a book of the shelf is sent to. */
     data class SendToLibrary(val id: String) : Screen()
 }

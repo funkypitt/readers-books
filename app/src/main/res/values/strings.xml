@@ -68,6 +68,9 @@
     <string name="sort_newest">newest first</string>
     <string name="sort_oldest">oldest first</string>
     <string name="all_books">all books</string>
+    <string name="search">search</string>
+    <string name="search_hint">title, author or folder</string>
+    <string name="no_book_matches">no book matches</string>
     <string name="sort_author">by author</string>
     <string name="sort_opened">last opened first</string>
     <string name="group_top">group by top folder</string>

@@ -64,6 +64,28 @@ object Folders {
         FolderSort.COUNT -> folders.sortedWith(compareByDescending<Folder> { it.count }.thenBy { it.path.lowercase() })
     }
 
+    /**
+     * The books whose name, author or folder carries every word of `query`, accents and case
+     * aside ("maigret 1950" finds "Simenon - Maigret et la vieille dame.epub" in "Books/1950s").
+     * An empty query finds nothing: the list is asked for, not spilled.
+     */
+    fun search(books: List<RemoteBook>, query: String): List<RemoteBook> {
+        val words = plain(query).split(' ').filter { it.isNotEmpty() }
+        if (words.isEmpty()) return emptyList()
+        return books.filter { b ->
+            val text = plain(b.title + " " + b.author + " " + b.folder.replace('/', ' '))
+            words.all { it in text }
+        }
+    }
+
+    /** Text as searched: lower case, accents and other marks taken off, every separator a space. */
+    fun plain(text: String): String {
+        val bare = java.text.Normalizer.normalize(text.lowercase(), java.text.Normalizer.Form.NFD).replace(MARKS, "")
+        return bare.replace(SEPARATORS, " ").trim()
+    }
+    private val MARKS = Regex("\\p{M}+")
+    private val SEPARATORS = Regex("[\\s_\\-–—.,;:()\\[\\]'’\"«»]+")
+
     /** The books of one list in the chosen order; `opened` = when this app last opened each, by its reference. */
     fun sortBooks(books: List<RemoteBook>, sort: BookSort, opened: Map<String, Long> = emptyMap()): List<RemoteBook> = when (sort) {
         BookSort.NEWEST -> books.sortedWith(compareByDescending<RemoteBook> { it.modified }.thenBy { it.name.lowercase() })

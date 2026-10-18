@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -165,6 +169,7 @@ fun LibraryScreen(nav: Nav, app: App) {
                         TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.folders_unread, index.failed.size)) { scan(false) }
                     }
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
+                    if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.search), secondary = stringResource(R.string.search_hint)) { nav.push(Screen.Search) } }
                     if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, shown.size, shown.size)) { nav.push(Screen.AllBooks) } }
                     items(folders, key = { it.path }) { f ->
                         // a top folder says how many folders it spans; its books are listed with them
@@ -187,6 +192,7 @@ fun LibraryScreen(nav: Nav, app: App) {
             if (progress == null) MenuItem(stringResource(R.string.scan_again)) { scan(true) } else MenuItem(stringResource(R.string.stop_scan)) { app.remote.cancel() },
             MenuItem(stringResource(if (s.libraryTopFolders) R.string.every_folder else R.string.group_top), secondary = stringResource(if (s.libraryTopFolders) R.string.every_folder_hint else R.string.group_top_hint)) { app.prefs.setLibraryTopFolders(!s.libraryTopFolders) },
             MenuItem(stringResource(R.string.order), secondary = folderSortLabel(s.folderSort)) { orderMenu = true },
+            if (index.books.isNotEmpty()) MenuItem(stringResource(R.string.search)) { nav.push(Screen.Search) } else null,
             MenuItem(stringResource(R.string.library_folders)) { nav.push(Screen.LibraryFolders) },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ), onDismiss = { menu = false })
@@ -240,14 +246,47 @@ fun AllBooksScreen(nav: Nav, app: App) {
 }
 
 /**
+ * The books of the library found by what is typed: every word must be in the name, the author
+ * or the folder, accents and case aside; in the order of « all books ». The keyboard opens with
+ * the page, and the list follows each letter.
+ */
+@Composable
+fun SearchScreen(nav: Nav, app: App) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val shelf by app.library.books.collectAsState()
+    val opened = remember(shelf) { openedOnShelf(shelf) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val books = remember(index, opened, s.allBooksSort, s.libraryFolders, s.libraryExcluded, query) {
+        Folders.sortBooks(Folders.search(app.remote.shown(s), query), s.allBooksSort, opened)
+    }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    BookList(nav, app, stringResource(R.string.search), books, showFolder = true,
+        order = if (query.isBlank()) "" else pluralStringResource(R.plurals.n_books, books.size, books.size) + " · " + bookSortLabel(s.allBooksSort),
+        orders = bookOrders { app.prefs.setAllBooksSort(it) },
+        opened = if (s.allBooksSort == BookSort.OPENED) opened else null,
+        empty = if (query.isBlank()) null else stringResource(R.string.no_book_matches),
+        searchable = false,
+        header = {
+            ReaderTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = rowPadH, vertical = 10.dp).focusRequester(focus),
+                placeholder = stringResource(R.string.search_hint), imeAction = ImeAction.Search)
+            Rule()
+        })
+}
+
+/**
  * A list of the drive's books under a title, with the current order named above it and the
  * orders offered in the ⋯ menu (`footer` = what else the menu offers). Tap fetches the book
  * (once) and opens it; held long, a book is fetched to be kept on the phone, or its copy on the
  * shelf is kept, renewed from the drive or removed. `showFolder` names each book's folder on its
- * line, as seen from `base`; `opened` adds when this app last opened each book.
+ * line, as seen from `base`; `opened` adds when this app last opened each book. `header` sits
+ * between the title and the list, `empty` is said when the list has nothing, and the menu
+ * offers the search unless this is the search itself.
  */
 @Composable
-private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, footer: List<MenuItem> = emptyList(), showFolder: Boolean = false, base: String = "", opened: Map<String, Long>? = null) {
+private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, footer: List<MenuItem> = emptyList(), showFolder: Boolean = false, base: String = "", opened: Map<String, Long>? = null,
+                     empty: String? = null, searchable: Boolean = true, header: (@Composable () -> Unit)? = null) {
     val s by app.prefs.settings.collectAsState()
     val shelf by app.library.books.collectAsState()
     val pending by app.downloads.pending.collectAsState()
@@ -272,8 +311,10 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
     Page {
         Column(Modifier.fillMaxSize()) {
             ScreenTitle(title, onBack = { nav.pop() }, trailing = "⋯", onTrailing = { menu = true })
+            header?.invoke()
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
-                item { Small(order, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
+                if (order.isNotEmpty()) item { Small(order, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
+                if (books.isEmpty() && empty != null) item { Small(empty, Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 2) }
                 failed?.let { e -> item { Small(fetchError(e), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
                 background?.let { (b, e) -> item { Small(b.title + " — " + fetchError(e), Modifier.noRippleClickable { app.downloads.seen() }.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
                 items(books, key = { it.ref }) { b ->
@@ -293,7 +334,9 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(stringResource(R.string.order), orders, onDismiss = { menu = false }, footer = footer)
+        val search = stringResource(R.string.search)
+        if (menu) TextMenu(stringResource(R.string.order), orders, onDismiss = { menu = false },
+            footer = footer + listOfNotNull(if (searchable) MenuItem(search) { nav.push(Screen.Search) } else null))
         // a book held long: on the phone to stay, or its copy there dealt with
         bookMenu?.let { b ->
             val copy = shelf.firstOrNull { it.source == b.ref }

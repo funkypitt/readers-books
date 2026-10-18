@@ -66,6 +66,9 @@
     <string name="sort_newest">сначала новые</string>
     <string name="sort_oldest">сначала старые</string>
     <string name="all_books">все книги</string>
+    <string name="search">поиск</string>
+    <string name="search_hint">название, автор или папка</string>
+    <string name="no_book_matches">ни одна книга не подходит</string>
     <string name="sort_author">по автору</string>
     <string name="sort_opened">сначала недавно открытые</string>
     <string name="group_top">группировать по верхней папке</string>
