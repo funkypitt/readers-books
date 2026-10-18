@@ -220,6 +220,7 @@ fun SettingsScreen(nav: Nav, app: App) {
                 TextRow(stringResource(R.string.app_name), secondary = stringResource(R.string.about)) { }
                 TextRow(stringResource(R.string.credits)) { }
                 TextRow("Literata", secondary = "The Literata Project Authors · SIL Open Font License 1.1") { }
+                TextRow("Roboto, Roboto Mono", secondary = "Christian Robertson, Google · Apache License 2.0") { }
                 TextRow("OkHttp", secondary = "Square, Inc. · Apache License 2.0") { }
             }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))

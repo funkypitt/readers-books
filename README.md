@@ -13,6 +13,8 @@ network is used only if you set up a library on your own drive. It extends the b
 * A tap on the right third of the screen turns forward, on the left third back, in the middle
   it opens the menu: chapters, larger or smaller text, book text in sans-serif or serif
   (Literata), back to the shelf, remove.
+* The faces travel with the app: Roboto Light, Literata and Roboto Mono are in the APK, so the
+  text looks the same on every device, whatever font the device has set.
 * Highlights and comments, in the books of the library: press and hold a word, slide over the
   passage, then "highlight" or "comment". A highlight is a grey band behind the words, with a
   line under it when it carries a comment; a tap on it shows the comment, changes it or removes
