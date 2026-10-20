@@ -18,9 +18,16 @@ import com.freedomfighter.readersbooks.data.FontChoice
 import com.freedomfighter.readersbooks.data.Settings
 import com.freedomfighter.readersbooks.data.TextSize
 import com.freedomfighter.readersbooks.data.ThemeMode
+import com.freedomfighter.readersbooks.data.Palettes
+import androidx.compose.ui.res.stringResource
+import com.freedomfighter.readersbooks.R
 
-/** Two colours only. `dim` is the foreground at reduced opacity for secondary lines and rules. */
-data class ReaderColors(val bg: Color, val fg: Color) {
+/**
+ * The colours of a theme: a background, a text colour, and the accent that fills the inverted
+ * rows (the text colour itself in the two inks). `dim` is the text at reduced opacity for
+ * secondary lines and rules.
+ */
+data class ReaderColors(val bg: Color, val fg: Color, val accent: Color = fg, val onAccent: Color = bg) {
     val dim: Color get() = fg.copy(alpha = 0.55f)
     val rule: Color get() = fg.copy(alpha = 0.25f)
     val isDark: Boolean get() = bg.luminance() < 0.5f
@@ -57,12 +64,8 @@ val LocalHaptics = compositionLocalOf { true }
 @Composable
 fun ReaderTheme(settings: Settings, content: @Composable () -> Unit) {
     val systemDark = isSystemInDarkTheme()
-    val dark = when (settings.theme) {
-        ThemeMode.DARK -> true
-        ThemeMode.LIGHT -> false
-        ThemeMode.SYSTEM -> systemDark
-    }
-    val colors = if (dark) ReaderColors(Color.Black, Color.White) else ReaderColors(Color.White, Color.Black)
+    val p = Palettes.of(settings.theme, systemDark)
+    val colors = ReaderColors(Color(p.bg), Color(p.fg), Color(p.accent), Color(p.onAccent))
     val family = when (settings.font) {
         FontChoice.SERIF -> LiterataFamily
         FontChoice.SANS -> RobotoFamily
@@ -83,6 +86,15 @@ fun ReaderTheme(settings: Settings, content: @Composable () -> Unit) {
         content = content
     )
 }
+
+/** The name of a theme, as the settings row and the menu show it. */
+@Composable
+fun themeName(m: ThemeMode): String = stringResource(when (m) {
+    ThemeMode.DARK -> R.string.theme_dark; ThemeMode.LIGHT -> R.string.theme_light; ThemeMode.SYSTEM -> R.string.theme_system
+    ThemeMode.LAVANDE -> R.string.theme_lavande; ThemeMode.SAUGE -> R.string.theme_sauge; ThemeMode.NORDIQUE -> R.string.theme_nordique
+    ThemeMode.TERRACOTTA -> R.string.theme_terracotta; ThemeMode.COQUETTE -> R.string.theme_coquette; ThemeMode.MILITANTE -> R.string.theme_militante
+    ThemeMode.TORRIDE -> R.string.theme_torride; ThemeMode.NATURE -> R.string.theme_nature
+})
 
 @Composable
 fun tileTextStyle(): TextStyle {

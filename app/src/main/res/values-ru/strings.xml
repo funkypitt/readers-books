@@ -26,6 +26,15 @@
     <string name="settings">настройки</string>
     <string name="theme_dark">белым по чёрному</string>
     <string name="theme_light">чёрным по белому</string>
+    <string name="theme_system">как телефон</string>
+    <string name="theme_lavande">лаванда</string>
+    <string name="theme_sauge">шалфей</string>
+    <string name="theme_nordique">северный</string>
+    <string name="theme_terracotta">терракота</string>
+    <string name="theme_coquette">кокетка</string>
+    <string name="theme_militante">активистка</string>
+    <string name="theme_torride">знойный</string>
+    <string name="theme_nature">природа</string>
     <string name="colours">цвета</string>
     <string name="about">читает файлы epub, mobi, fb2 и txt</string>
     <string name="credits">Pierre Gallaz · разработано с Claude Code</string>

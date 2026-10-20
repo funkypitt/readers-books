@@ -28,6 +28,15 @@
     <string name="settings">settings</string>
     <string name="theme_dark">white on black</string>
     <string name="theme_light">black on white</string>
+    <string name="theme_system">as the phone</string>
+    <string name="theme_lavande">lavender</string>
+    <string name="theme_sauge">sage</string>
+    <string name="theme_nordique">nordic</string>
+    <string name="theme_terracotta">terracotta</string>
+    <string name="theme_coquette">coquette</string>
+    <string name="theme_militante">activist</string>
+    <string name="theme_torride">sultry</string>
+    <string name="theme_nature">nature</string>
     <string name="colours">colours</string>
     <string name="about">reads epub, mobi, fb2 and txt files</string>
     <string name="credits">Pierre Gallaz · developed with Claude Code</string>

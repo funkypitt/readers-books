@@ -36,6 +36,7 @@ import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
 import com.freedomfighter.readersbooks.books.Entry
 import com.freedomfighter.readersbooks.data.FontChoice
+import com.freedomfighter.readersbooks.data.Palettes
 import com.freedomfighter.readersbooks.data.SHELF_KEEP_DAYS
 import com.freedomfighter.readersbooks.data.ShelfSort
 import com.freedomfighter.readersbooks.data.TextSize
@@ -95,7 +96,6 @@ fun whenLabel(millis: Long, yesterday: String): String {
 @Composable
 fun ShelfScreen(nav: Nav, app: App) {
     val typo = LocalTypo.current
-    val colors = LocalColors.current
     val books by app.library.books.collectAsState()
     val settings by app.prefs.settings.collectAsState()
     val scope = rememberCoroutineScope()
@@ -150,7 +150,7 @@ fun ShelfScreen(nav: Nav, app: App) {
         }
         if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }, MenuItem(stringResource(R.string.library)) { nav.push(Screen.Library) },
             MenuItem(stringResource(R.string.order), secondary = orderLabel) { orderMenu = true }), onDismiss = { menu = false }, footer = listOf(
-            MenuItem(if (colors.isDark) stringResource(R.string.theme_light) else stringResource(R.string.theme_dark)) { app.prefs.toggleTheme(colors.isDark) },
+            MenuItem(themeName(Palettes.next(settings.theme))) { app.prefs.nextTheme() },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ))
         if (orderMenu) TextMenu(stringResource(R.string.order), ShelfSort.entries.map { o -> MenuItem(shelfSortLabel(o)) { app.prefs.setShelfSort(o) } }, onDismiss = { orderMenu = false })
@@ -177,7 +177,6 @@ fun keepDaysLabel(days: Int) = stringResource(when (days) { 0 -> R.string.cleanu
 @Composable
 fun SettingsScreen(nav: Nav, app: App) {
     val s by app.prefs.settings.collectAsState()
-    val colors = LocalColors.current
     val current = if (s.readerSp > 0) s.readerSp else defaultReaderSp()
     var prompt by remember { mutableStateOf<String?>(null) }
     val export = rememberCredentialsExport()
@@ -186,7 +185,7 @@ fun SettingsScreen(nav: Nav, app: App) {
         Column(Modifier.fillMaxSize()) {
             ScreenTitle(stringResource(R.string.settings), onBack = { nav.pop() })
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                TextRow(if (colors.isDark) stringResource(R.string.theme_dark) else stringResource(R.string.theme_light), secondary = stringResource(R.string.colours)) { app.prefs.toggleTheme(colors.isDark) }
+                TextRow(themeName(s.theme), secondary = stringResource(R.string.colours)) { app.prefs.nextTheme() }
                 TextRow(if (s.readerSp == 0) stringResource(R.string.reading_size_auto, current) else "$current", secondary = stringResource(R.string.reading_size)) { app.prefs.setReaderSp((current + 2).coerceAtMost(40)) }
                 TextRow(stringResource(R.string.smaller_text), secondary = "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) }
                 TextRow(stringResource(R.string.auto_size), secondary = stringResource(R.string.auto_size_hint)) { app.prefs.setReaderSp(0) }

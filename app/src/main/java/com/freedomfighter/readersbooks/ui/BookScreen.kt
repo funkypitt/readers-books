@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
+import com.freedomfighter.readersbooks.data.Palettes
 import com.freedomfighter.readersbooks.books.Block
 import com.freedomfighter.readersbooks.books.Book
 import com.freedomfighter.readersbooks.books.Entry
@@ -115,7 +116,6 @@ fun BookScreen(nav: Nav, app: App, id: String) {
         if (menu) {
             val settings by app.prefs.settings.collectAsState()
             val current = if (settings.readerSp > 0) settings.readerSp else defaultReaderSp()
-            val dark = LocalColors.current.isDark
             val context = LocalContext.current
             val exportTitle = stringResource(R.string.export_highlights)
             val marks by app.highlights.current.collectAsState()
@@ -142,7 +142,7 @@ fun BookScreen(nav: Nav, app: App, id: String) {
                 },
                 footer = listOf(
                     MenuItem(stringResource(R.string.shelf)) { nav.pop() },
-                    MenuItem(if (dark) stringResource(R.string.theme_light) else stringResource(R.string.theme_dark)) { app.prefs.toggleTheme(dark) }
+                    MenuItem(themeName(Palettes.next(settings.theme))) { app.prefs.nextTheme() }
                 ),
                 onDismiss = { menu = false }
             )
@@ -356,6 +356,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         var canvasHeight by remember { mutableStateOf(0) }
         val pageHeightPx = if (canvasHeight > 0) canvasHeight.toFloat() else estimatedHeightPx
         val fgArgb = colors.fg.toArgb()
+        val accentArgb = colors.accent.toArgb()
         val dimArgb = colors.dim.toArgb()
         val images = remember(entry.fileName) { app.library.images(entry) }
         val bitmapPaint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
@@ -550,7 +551,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                     // stronger band behind what is being selected.
                     val marks = shown.filter { it.chapter == chapter }.map { Mark(it.start, it.end, 0.22f, it.comment.isNotBlank()) } +
                         listOfNotNull(marked?.let { Mark(it.first, it.second, 0.45f, false) })
-                    if (marks.isNotEmpty()) for (piece in pageDef.pieces) if (piece is Piece.Lines) drawMarks(n, piece, marks, paint, fgArgb, density.density)
+                    if (marks.isNotEmpty()) for (piece in pageDef.pieces) if (piece is Piece.Lines) drawMarks(n, piece, marks, paint, accentArgb, fgArgb, density.density)
                     for (piece in pageDef.pieces) when (piece) {
                         is Piece.Lines -> {
                             // Clip to the bottom of this piece's last whole line, not to the canvas:
@@ -607,7 +608,8 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
 
 private class Mark(val start: Int, val end: Int, val strength: Float, val commented: Boolean)
 
-private fun drawMarks(n: android.graphics.Canvas, piece: Piece.Lines, marks: List<Mark>, text: TextPaint, fgArgb: Int, density: Float) {
+/** The bands are the theme's accent at the mark's opacity (the text colour itself in the two inks); the line under a comment is the text colour. */
+private fun drawMarks(n: android.graphics.Canvas, piece: Piece.Lines, marks: List<Mark>, text: TextPaint, accentArgb: Int, fgArgb: Int, density: Float) {
     val layout = piece.layout
     val band = Paint()
     val under = Paint().apply { color = fgArgb }
@@ -621,7 +623,7 @@ private fun drawMarks(n: android.graphics.Canvas, piece: Piece.Lines, marks: Lis
             if (x2 <= x1) continue
             val top = (piece.y + layout.getLineTop(l) - piece.top).toFloat()
             val bottom = piece.y + layout.getLineBaseline(l) - piece.top + text.fontMetrics.descent
-            band.color = fgArgb
+            band.color = accentArgb
             band.alpha = (m.strength * 255).toInt()
             n.drawRect(x1, top, x2, bottom, band)
             if (m.commented) n.drawRect(x1, bottom - density, x2, bottom + density, under)
@@ -769,11 +771,11 @@ private fun MagazineContents(magazine: Magazine, entry: Entry, app: App, listSta
             }
             item(key = "a$i") {
                 val inverted = a === current
-                val fg = if (inverted) colors.bg else colors.fg
-                val dim = if (inverted) colors.bg.copy(alpha = 0.6f) else colors.dim
+                val fg = if (inverted) colors.onAccent else colors.fg
+                val dim = if (inverted) colors.onAccent.copy(alpha = 0.6f) else colors.dim
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(if (inverted) colors.fg else androidx.compose.ui.graphics.Color.Transparent)
+                        .background(if (inverted) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
                         .noRippleClickable { onOpen(a) }
                         .padding(horizontal = rowPadH, vertical = rowPadV * 0.6f),
                     verticalAlignment = Alignment.CenterVertically
