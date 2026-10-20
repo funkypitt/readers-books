@@ -20,7 +20,6 @@ import com.freedomfighter.readersbooks.data.TextSize
 import com.freedomfighter.readersbooks.data.ThemeMode
 import com.freedomfighter.readersbooks.data.Palettes
 import androidx.compose.ui.res.stringResource
-import com.freedomfighter.readersbooks.R
 
 /**
  * The colours of a theme: a background, a text colour, and the accent that fills the inverted
