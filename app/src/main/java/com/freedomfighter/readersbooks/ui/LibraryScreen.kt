@@ -3,6 +3,7 @@ package com.freedomfighter.readersbooks.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -326,7 +327,8 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
                         openedLabel, if (showFolder) Folders.relative(base, b.folder).ifEmpty { if (base.isEmpty()) rootFolder else "" } else "",
                         dateLabel(b.modified), b.extension, sizeLabel(b.size)
                     ).filter { it.isNotEmpty() }.joinToString(" · ")
-                    Column(Modifier.fillMaxWidth().pressable(onClick = { open(b) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
+                    val interaction = remember { MutableInteractionSource() }
+                    Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = { open(b) }, onLongPress = { bookMenu = b }, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {
                         T(b.title, size = LocalTypo.current.title, maxLines = 2)
                         Small(line, maxLines = 1)
                     }

@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -136,7 +137,8 @@ fun ShelfScreen(nav: Nav, app: App) {
                 if (books.isEmpty() && !nav.importing) item { Small(stringResource(R.string.empty_shelf), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                 else item { Small(room, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
                 items(shelf, key = { it.id }) { b ->
-                    Column(Modifier.fillMaxWidth().pressable(onClick = { nav.push(if (b.magazine) Screen.Chapters(b.id) else Screen.Book(b.id)) }, onLongPress = { bookMenu = b }).padding(horizontal = rowPadH, vertical = rowPadV * 0.7f)) {
+                    val interaction = remember { MutableInteractionSource() }
+                    Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = { nav.push(if (b.magazine) Screen.Chapters(b.id) else Screen.Book(b.id)) }, onLongPress = { bookMenu = b }, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {
                         T(b.title, size = typo.title, maxLines = 2)
                         Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened, stringResource(R.string.yesterday)), b.format.name.lowercase(), sizeLabel(b.size),
                             if (b.kept) stringResource(R.string.kept) else "").filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)

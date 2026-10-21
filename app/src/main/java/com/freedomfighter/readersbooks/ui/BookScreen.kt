@@ -17,6 +17,11 @@ import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -681,18 +686,25 @@ private fun PictureViewer(images: ImageStore, source: String, onDismiss: () -> U
 private fun CommentSheet(comment: String, items: List<MenuItem>, onDismiss: () -> Unit) {
     val colors = LocalColors.current
     BackHandler(onBack = onDismiss)
+    val tiles = colors.tiles
     Box(Modifier.fillMaxSize().background(colors.bg.copy(alpha = 0.6f)).noRippleClickable(onClick = onDismiss)) {
+        // with tiles, a rounded card like a menu: the comment reads flat on it, its actions under a hairline
+        CompositionLocalProvider(LocalInTile provides true) {
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(colors.bg).noRippleClickable { }
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .then(if (tiles) Modifier.padding(horizontal = tileGap).clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) else Modifier)
+                .background(if (tiles) colors.tile else colors.bg).noRippleClickable { }
                 .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
-            Rule(color = colors.fg)
+            if (tiles) Spacer(Modifier.height(10.dp)) else Rule(color = colors.fg)
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                 T(comment, Modifier.padding(horizontal = rowPadH, vertical = 16.dp), size = LocalTypo.current.title, maxLines = 200, align = TextAlign.Start)
             }
-            Rule(Modifier.padding(vertical = 6.dp))
+            if (tiles) Canvas(Modifier.fillMaxWidth().padding(horizontal = rowPadH, vertical = 6.dp).height(1.dp)) { drawRect(colors.press) }
+            else Rule(Modifier.padding(vertical = 6.dp))
             items.forEach { item -> TextRow(item.label, size = LocalTypo.current.title, onClick = { onDismiss(); item.action() }) }
             VSpace(8.dp)
+        }
         }
     }
 }
@@ -773,11 +785,13 @@ private fun MagazineContents(magazine: Magazine, entry: Entry, app: App, listSta
                 val inverted = a === current
                 val fg = if (inverted) colors.onAccent else colors.fg
                 val dim = if (inverted) colors.onAccent.copy(alpha = 0.6f) else colors.dim
+                val interaction = remember { MutableInteractionSource() }
                 Row(
                     Modifier.fillMaxWidth()
+                        .tileCard(rowSurface(interaction, inverted))
                         .background(if (inverted) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
-                        .noRippleClickable { onOpen(a) }
-                        .padding(horizontal = rowPadH, vertical = rowPadV * 0.6f),
+                        .clickable(interactionSource = interaction, indication = null) { onOpen(a) }
+                        .padding(horizontal = rowInset(), vertical = rowPadV * 0.6f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
