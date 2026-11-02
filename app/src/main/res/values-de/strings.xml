@@ -140,6 +140,8 @@
     <string name="add_comment">Kommentar hinzufügen</string>
     <string name="edit_comment">Kommentar ändern</string>
     <string name="remove_highlight">Markierung entfernen</string>
+    <string name="copy">kopieren</string>
+    <string name="copied">kopiert</string>
     <string name="export_highlights">Markierungen exportieren</string>
     <string name="notes_folder">Ordner von Reader\'s Notes</string>
     <string name="notes_username">Benutzername für die Notizen</string>

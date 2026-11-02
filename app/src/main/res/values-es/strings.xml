@@ -143,6 +143,8 @@
     <string name="add_comment">añadir un comentario</string>
     <string name="edit_comment">editar el comentario</string>
     <string name="remove_highlight">quitar el resaltado</string>
+    <string name="copy">copiar</string>
+    <string name="copied">copiado</string>
     <string name="export_highlights">exportar los resaltados</string>
     <string name="notes_folder">carpeta de Reader\'s Notes</string>
     <string name="notes_username">usuario para las notas</string>

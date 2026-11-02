@@ -148,6 +148,8 @@
     <string name="add_comment">добавить комментарий</string>
     <string name="edit_comment">изменить комментарий</string>
     <string name="remove_highlight">убрать выделение</string>
+    <string name="copy">копировать</string>
+    <string name="copied">скопировано</string>
     <string name="export_highlights">экспортировать выделения</string>
     <string name="notes_folder">папка Reader\'s Notes</string>
     <string name="notes_username">имя пользователя для заметок</string>

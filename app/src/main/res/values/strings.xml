@@ -142,6 +142,8 @@
     <string name="add_comment">add a comment</string>
     <string name="edit_comment">edit the comment</string>
     <string name="remove_highlight">remove the highlight</string>
+    <string name="copy">copy</string>
+    <string name="copied">copied</string>
     <string name="export_highlights">export the highlights</string>
     <string name="notes_folder">Reader\'s Notes folder</string>
     <string name="notes_username">username for the notes</string>

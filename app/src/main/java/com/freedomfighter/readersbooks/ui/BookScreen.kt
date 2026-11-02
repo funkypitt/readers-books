@@ -481,6 +481,13 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             }?.source
         }
         fun write(h: Highlight) = app.highlights.change(entry, all.filter { it.id != h.id } + h)
+        // The passage alone, for a message or a note elsewhere: the export carries the attribution.
+        // Android 13 shows its own clipboard bubble; before that, a word from us.
+        fun copy(text: String) {
+            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Reader's Books", text))
+            if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, context.getString(R.string.copied), android.widget.Toast.LENGTH_SHORT).show()
+        }
         val marked = chosen ?: selecting?.let { Highlights.words(chapterText, it.first, it.second) }
         // Pictures of this page, decoded off the main thread; the canvas draws what has arrived.
         val bitmaps by produceState<Map<String, Bitmap>>(emptyMap(), pageDef) {
@@ -590,12 +597,14 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             val same = shown.firstOrNull { it.chapter == chapter && it.start == start && it.end == end }
             TextMenu(null, listOf(
                 MenuItem(stringResource(R.string.highlight)) { if (same == null) write(Highlights.new(chapter, start, end, words)) },
-                MenuItem(stringResource(R.string.comment)) { commenting = same ?: Highlights.new(chapter, start, end, words) }
+                MenuItem(stringResource(R.string.comment)) { commenting = same ?: Highlights.new(chapter, start, end, words) },
+                MenuItem(stringResource(R.string.copy)) { copy(words) }
             ), onDismiss = { chosen = null })
         }
         opened?.let { h ->
             val items = listOf(
                 MenuItem(stringResource(if (h.comment.isBlank()) R.string.add_comment else R.string.edit_comment)) { commenting = h },
+                MenuItem(stringResource(R.string.copy)) { copy(chapterText.substring(h.start, h.end)) },
                 // Kept in the list as removed: that is what tells the other devices.
                 MenuItem(stringResource(R.string.remove_highlight)) { write(h.copy(deleted = true, text = "", comment = "", modified = System.currentTimeMillis())) }
             )

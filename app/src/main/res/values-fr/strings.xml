@@ -143,6 +143,8 @@
     <string name="add_comment">ajouter un commentaire</string>
     <string name="edit_comment">modifier le commentaire</string>
     <string name="remove_highlight">retirer le surlignage</string>
+    <string name="copy">copier</string>
+    <string name="copied">copié</string>
     <string name="export_highlights">exporter les surlignages</string>
     <string name="notes_folder">dossier de Reader\'s Notes</string>
     <string name="notes_username">nom d\'utilisateur pour les notes</string>
