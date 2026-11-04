@@ -200,4 +200,5 @@
     <string name="latest_issue">latest %1$s</string>
     <string name="looking_for_more">looking for more… %1$d/%2$d</string>
     <string name="newest_first">the newest first</string>
+    <string name="on_the_drive">on the drive</string>
 </resources>

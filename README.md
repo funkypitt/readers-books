@@ -45,6 +45,13 @@ network is used only if you set up a library on your own drive. It extends the b
   zooms in or back; a tap or back closes it) — the way to read a table. Styles and footnote
   links are dropped; footnotes are small print. MOBI means PalmDoc; no PDF (a paper in PDF
   becomes an EPUB in the desktop app, and comes here through the library).
+* The library's page keeps apart what is a tool and what is books: **search** and **sync now**
+  are two framed buttons, with what the sync did under them, and what the library asks for (a
+  choice of folders, a scan to carry on) in small print; under a rule, **on the drive** heads the
+  books only — news, all books and the folders. A sync lists first the folders the last syncs
+  found books in, at once, then the folders on the way to them, then the rest of the drive (where
+  new books are only looked for): on a drive of 20 000 folders, the 77 that hold books are up to
+  date in seconds.
 * **news** in the library (there only when the library holds some): the issues of newspapers and
   magazines from every folder in one list, the newest first by the file's creation date on the
   drive (else its last change). An issue is told from a book as the reader tells a magazine —

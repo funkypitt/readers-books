@@ -198,4 +198,5 @@
     <string name="latest_issue">neueste: %1$s</string>
     <string name="looking_for_more">Suche läuft… %1$d/%2$d</string>
     <string name="newest_first">die neuesten zuerst</string>
+    <string name="on_the_drive">auf dem Laufwerk</string>
 </resources>

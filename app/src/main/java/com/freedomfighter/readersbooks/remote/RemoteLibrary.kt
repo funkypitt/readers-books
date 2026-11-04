@@ -171,8 +171,13 @@ class RemoteLibrary(private val context: Context) {
         // A pool of workers over one queue, so a slow folder holds nobody else back. Folders that
         // failed last time get another chance now. Each folder listed is merged into the books
         // known so far, so the library stays whole on the screen while the drive is walked.
+        // The queue goes by what the last syncs found: the folders that held books first (they
+        // are asked for at once, without waiting for the walk to reach them), then the folders
+        // on the way to them, then the rest of the drive, where new books are only looked for.
         val books = ArrayList(idx.books)
-        val queue = ArrayDeque((idx.frontier + idx.failed).distinct())
+        val queue = Walk(idx.books.map { it.folder }.filter { Folders.inLibrary(chosen, it, excluded) }.toSet()) { remote.folderPath(it) }
+        (idx.frontier + idx.failed).forEach { queue.add(it) }
+        val seeded = if (fromTop) queue.known.map { remote.folderRef(it) }.onEach { queue.add(it) }.toSet() else emptySet()
         val inFlight = HashSet<String>()
         val failed = ArrayList<String>()
         var folders = idx.folders
@@ -181,14 +186,14 @@ class RemoteLibrary(private val context: Context) {
         val lock = Mutex()
         suspend fun snapshot(complete: Boolean): Index = lock.withLock {
             dirty = false
-            idx.copy(books = books.toList(), frontier = if (complete) emptyList() else (queue + inFlight).toList(), failed = failed.toList(), folders = folders, scannedAt = System.currentTimeMillis(), complete = complete)
+            idx.copy(books = books.toList(), frontier = if (complete) emptyList() else (queue.all() + inFlight).toList(), failed = failed.toList(), folders = folders, scannedAt = System.currentTimeMillis(), complete = complete)
         }
         val workers = List(PARALLEL) {
             launch(Dispatchers.IO) {
                 while (true) {
                     val f = lock.withLock {
                         if (fatal != null || folders + inFlight.size >= MAX_FOLDERS) null
-                        else queue.removeFirstOrNull()?.also { inFlight += it } ?: if (inFlight.isEmpty()) null else ""
+                        else queue.next()?.also { inFlight += it } ?: if (inFlight.isEmpty()) null else ""
                     } ?: break
                     if (f.isEmpty()) { delay(200); continue }
                     val r = listWithRetries(remote, f)
@@ -196,7 +201,7 @@ class RemoteLibrary(private val context: Context) {
                         inFlight -= f
                         r.onSuccess {
                             // a folder left out is not walked; its books stay known, so it can be taken back
-                            queue += it.folders.filter { d -> !Folders.leftOut(excluded, remote.folderPath(d)) }; folders++
+                            it.folders.filter { d -> !Folders.leftOut(excluded, remote.folderPath(d)) }.forEach { d -> queue.add(d) }; folders++
                             val merged = Folders.merge(books, remote.folderPath(f), it.folders.map { d -> remote.folderPath(d) }, it.books)
                             books.clear(); books += merged
                         }
@@ -205,8 +210,8 @@ class RemoteLibrary(private val context: Context) {
                         // and calling the drive empty. A chosen folder the drive no longer has
                         // (or no transcripts folder yet) is simply empty.
                         r.onFailure { e ->
-                            if (e is Unauthorized) { fatal = e; queue.addFirst(f) }
-                            else if (f in roots && e.message == "HTTP 404") { val p = remote.folderPath(f); books.removeAll { Folders.under(p, it.folder) } }
+                            if (e is Unauthorized) { fatal = e; queue.retry(f) }
+                            else if ((f in roots || f in seeded) && e.message == "HTTP 404") { val p = remote.folderPath(f); books.removeAll { Folders.under(p, it.folder) } }
                             else failed += f
                         }
                         dirty = true
@@ -226,6 +231,31 @@ class RemoteLibrary(private val context: Context) {
         saver.cancel()
         fatal?.let { save(snapshot(false)); throw it }
         save(snapshot(true))
+    }
+
+    /**
+     * The folders still to list, by what the last syncs found: those that held books, then those
+     * on the way to them, then the others; each folder once (by its path: the drive's own address
+     * and the one made from a path may be written differently).
+     */
+    internal class Walk(val known: Set<String>, private val pathOf: (String) -> String) {
+        private val onTheWay: Set<String> = known.flatMap { f -> f.split('/').indices.map { i -> f.split('/').take(i).joinToString("/") } }.toSet()
+        private val ranks = List(3) { ArrayDeque<String>() }
+        private val seen = HashSet<String>()
+
+        fun rank(path: String) = when (path) { in known -> 0; in onTheWay -> 1; else -> 2 }
+
+        fun add(ref: String) {
+            val path = pathOf(ref)
+            if (seen.add(path)) ranks[rank(path)].addLast(ref)
+        }
+
+        /** Back first in line (a refused login: the sync carries on from it). */
+        fun retry(ref: String) { seen.add(pathOf(ref)); ranks[0].addFirst(ref) }
+
+        fun next(): String? = ranks.firstOrNull { it.isNotEmpty() }?.removeFirst()
+
+        fun all(): List<String> = ranks.flatten()
     }
 
     /** Servers hiccup (timeouts, 429, 5xx): three tries with a pause; a refused login stops everything. */

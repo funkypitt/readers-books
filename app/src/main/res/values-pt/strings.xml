@@ -201,4 +201,5 @@
     <string name="latest_issue">último: %1$s</string>
     <string name="looking_for_more">procurando mais… %1$d/%2$d</string>
     <string name="newest_first">os mais recentes primeiro</string>
+    <string name="on_the_drive">no disco</string>
 </resources>

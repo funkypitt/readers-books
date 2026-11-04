@@ -5,6 +5,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -165,24 +176,31 @@ fun LibraryScreen(nav: Nav, app: App) {
                 }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
                     homeRows(nav, app) { followMenu = it }
-                    // the sync, by hand, with where it is or when it last ran
-                    item {
+                    // the tools, set apart from the books: two buttons, what the sync did or does under them,
+                    // and what it asks for (a choice of folders, a scan to carry on, an error) in small print
+                    item(key = "tools") {
                         val state = progress?.let { p -> stringResource(R.string.scanning, p.folders, p.books) } ?: if (index.scannedAt > 0L) stringResource(R.string.scanned_at, dateLabel(index.scannedAt)) else null
-                        TextRow(stringResource(R.string.sync_now), secondary = state) { if (progress == null) scan(false) }
+                        Column(Modifier.padding(top = 10.dp, bottom = 4.dp)) {
+                            ToolButtons(listOfNotNull(
+                                if (shown.isNotEmpty()) stringResource(R.string.search) to { nav.push(Screen.Search) } else null,
+                                stringResource(if (progress == null) R.string.sync_now else R.string.stop_scan) to { if (progress == null) scan(false) else app.remote.cancel() }))
+                            state?.let { Small(it, Modifier.fillMaxWidth().padding(horizontal = rowPadH).padding(top = 6.dp), maxLines = 1, align = TextAlign.Center) }
+                        }
                     }
-                    error?.let { e -> item { Small(errorText(e), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) } }
+                    error?.let { e -> item { Small(errorText(e), Modifier.padding(horizontal = rowPadH, vertical = 6.dp), maxLines = 4) } }
                     // once the drive was walked: keep only some of its folders?
                     if (progress == null && index.complete && index.scannedAt > 0L && !s.libraryFoldersAsked && s.libraryFolders.isEmpty() && known.size > 1) item {
-                        TextRow(stringResource(R.string.folders_offer), secondary = stringResource(R.string.folders_offer_hint, known.size)) { app.prefs.setLibraryFoldersAsked(); nav.push(Screen.LibraryFolders) }
+                        ToolNote(stringResource(R.string.folders_offer), stringResource(R.string.folders_offer_hint, known.size)) { app.prefs.setLibraryFoldersAsked(); nav.push(Screen.LibraryFolders) }
                     }
                     if (progress == null && !index.complete && index.scannedAt > 0L) item {
-                        TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.scan_interrupted, index.folders, index.books.size)) { scan(false) }
+                        ToolNote(stringResource(R.string.continue_scan), stringResource(R.string.scan_interrupted, index.folders, index.books.size)) { scan(false) }
                     }
                     if (progress == null && index.complete && index.failed.isNotEmpty()) item {
-                        TextRow(stringResource(R.string.continue_scan), secondary = stringResource(R.string.folders_unread, index.failed.size)) { scan(false) }
+                        ToolNote(stringResource(R.string.continue_scan), stringResource(R.string.folders_unread, index.failed.size)) { scan(false) }
                     }
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
-                    if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.search), secondary = stringResource(R.string.search_hint)) { nav.push(Screen.Search) } }
+                    // then the books of the drive, and nothing else: its collections and its folders
+                    if (shown.isNotEmpty()) item(key = "drive") { SectionLabel(stringResource(R.string.on_the_drive)) }
                     // the newspapers and magazines, together, the newest first: there only when the library has some
                     if (news.isNotEmpty()) item {
                         val line = listOfNotNull(pluralStringResource(R.plurals.n_issues, news.size, news.size),
@@ -231,6 +249,48 @@ fun LibraryScreen(nav: Nav, app: App) {
         if (orderMenu) TextMenu(stringResource(R.string.order), FolderSort.entries.map { o -> MenuItem(folderSortLabel(o)) { app.prefs.setFolderSort(o) } }, onDismiss = { orderMenu = false })
         LibraryAccountPrompt(app, s, prompt) { prompt = null }
         CredentialsExportMenu(export)
+    }
+}
+
+/**
+ * Tools of a page, not books: a row of buttons drawn as such (a thin frame, the text a size
+ * smaller than a book's), so they never pass for a folder or a collection.
+ */
+@Composable
+internal fun ToolButtons(items: List<Pair<String, () -> Unit>>) {
+    val colors = LocalColors.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = if (colors.tiles) tileGap else rowPadH - 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.forEach { (label, action) ->
+            val interaction = remember { MutableInteractionSource() }
+            val pressed by interaction.collectIsPressedAsState()
+            val shape = RoundedCornerShape(if (colors.tiles) tileCorner else 10.dp)
+            Box(
+                Modifier.weight(1f).clip(shape)
+                    .background(if (colors.tiles) (if (pressed) colors.press else colors.tile) else Color.Transparent)
+                    .then(if (colors.tiles) Modifier else Modifier.border(1.dp, colors.rule, shape))
+                    .clickable(interactionSource = interaction, indication = null, onClick = action)
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) { T(label, size = LocalTypo.current.small * 1.15f, maxLines = 1, align = TextAlign.Center) }
+        }
+    }
+}
+
+/** Something the library asks for, under its tools: small, one tap. */
+@Composable
+internal fun ToolNote(text: String, hint: String, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().noRippleClickable(onClick = onClick).padding(horizontal = rowPadH, vertical = 8.dp)) {
+        T("› $text", size = LocalTypo.current.small * 1.1f, maxLines = 2, align = TextAlign.Start)
+        Small(hint, maxLines = 2, align = TextAlign.Start)
+    }
+}
+
+/** The name over a part of a list, in small capitals, with a rule: where the books begin. */
+@Composable
+internal fun SectionLabel(text: String) {
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 2.dp)) {
+        Rule(Modifier.padding(horizontal = rowPadH))
+        Small(text.uppercase(), Modifier.padding(horizontal = rowPadH).padding(top = 10.dp), maxLines = 1, align = TextAlign.Start)
     }
 }
 
