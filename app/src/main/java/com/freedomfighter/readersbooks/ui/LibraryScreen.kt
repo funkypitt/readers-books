@@ -154,6 +154,15 @@ fun LibraryScreen(nav: Nav, app: App) {
                 val folders = remember(index, s.libraryFolders, s.libraryExcluded, s.libraryTopFolders, s.folderSort) { app.remote.folders(s) }
                 val shown = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.shown(s) }
                 val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
+                val kinds by app.remote.kinds.collectAsState()
+                val sorting by app.remote.sorting.collectAsState()
+                val shelfBooks by app.library.books.collectAsState()
+                val news = remember(index, kinds, s.libraryFolders, s.libraryExcluded) { app.remote.news(s, kinds) }
+                // the books not told apart yet are looked at quietly, a few kilobytes each
+                LaunchedEffect(index, progress) {
+                    if (progress == null && index.scannedAt > 0L)
+                        app.remote.sortBooks(s, shelfBooks.filter { it.source != null }.associate { it.source!! to it.magazine })
+                }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
                     homeRows(nav, app) { followMenu = it }
                     // the sync, by hand, with where it is or when it last ran
@@ -174,6 +183,13 @@ fun LibraryScreen(nav: Nav, app: App) {
                     }
                     if (folders.isEmpty() && progress == null && error == null && index.complete && index.scannedAt > 0L) item { Small(stringResource(R.string.no_books_found), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                     if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.search), secondary = stringResource(R.string.search_hint)) { nav.push(Screen.Search) } }
+                    // the newspapers and magazines, together, the newest first: there only when the library has some
+                    if (news.isNotEmpty()) item {
+                        val line = listOfNotNull(pluralStringResource(R.plurals.n_issues, news.size, news.size),
+                            stringResource(R.string.latest_issue, dateLabel(com.freedomfighter.readersbooks.remote.News.date(news[0]))),
+                            sorting?.let { stringResource(R.string.looking_for_more, it.first, it.second) }).joinToString(" · ")
+                        TextRow(stringResource(R.string.news), secondary = line) { nav.push(Screen.News) }
+                    }
                     if (shown.isNotEmpty()) item { TextRow(stringResource(R.string.all_books), secondary = pluralStringResource(R.plurals.n_books, shown.size, shown.size)) { nav.push(Screen.AllBooks) } }
                     items(folders, key = { it.path }) { f ->
                         // a top folder says how many folders it spans; its books are listed with them
@@ -304,6 +320,17 @@ private fun openedOnShelf(shelf: List<Entry>): Map<String, Long> = shelf.filter 
  * name, by author, or by when this app last opened them. The folder's name stays on the second line.
  */
 @Composable
+fun NewsScreen(nav: Nav, app: App) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val kinds by app.remote.kinds.collectAsState()
+    val books = remember(index, kinds, s.libraryFolders, s.libraryExcluded) { app.remote.news(s, kinds) }
+    BookList(nav, app, stringResource(R.string.news), books, showFolder = true,
+        order = pluralStringResource(R.plurals.n_issues, books.size, books.size) + " · " + stringResource(R.string.newest_first),
+        orders = emptyList(), dated = { com.freedomfighter.readersbooks.remote.News.date(it) })
+}
+
+@Composable
 fun AllBooksScreen(nav: Nav, app: App) {
     val s by app.prefs.settings.collectAsState()
     val index by app.remote.index.collectAsState()
@@ -356,7 +383,7 @@ fun SearchScreen(nav: Nav, app: App) {
  */
 @Composable
 private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, footer: List<MenuItem> = emptyList(), showFolder: Boolean = false, base: String = "", opened: Map<String, Long>? = null,
-                     empty: String? = null, searchable: Boolean = true, header: (@Composable () -> Unit)? = null) {
+                     empty: String? = null, searchable: Boolean = true, header: (@Composable () -> Unit)? = null, dated: (RemoteBook) -> Long = { it.modified }) {
     val s by app.prefs.settings.collectAsState()
     val shelf by app.library.books.collectAsState()
     val pending by app.downloads.pending.collectAsState()
@@ -394,7 +421,7 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
                         if (b.ref in pending) stringResource(R.string.downloading) else if (copy?.kept == true) stringResource(R.string.kept) else if (copy != null) stringResource(R.string.on_shelf) else "",
                         if (copy != null && app.downloads.newer(copy, b)) stringResource(R.string.newer_on_drive) else "",
                         openedLabel, if (showFolder) Folders.relative(base, b.folder).ifEmpty { if (base.isEmpty()) rootFolder else "" } else "",
-                        dateLabel(b.modified), b.extension, sizeLabel(b.size)
+                        dateLabel(dated(b)), b.extension, sizeLabel(b.size)
                     ).filter { it.isNotEmpty() }.joinToString(" · ")
                     val interaction = remember { MutableInteractionSource() }
                     Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = { open(b) }, onLongPress = { bookMenu = b }, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {

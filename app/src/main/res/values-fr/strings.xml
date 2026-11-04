@@ -197,4 +197,8 @@
         <item quantity="one">%d numéro</item>
         <item quantity="other">%d numéros</item>
     </plurals>
+    <string name="news">actualités</string>
+    <string name="latest_issue">dernier : %1$s</string>
+    <string name="looking_for_more">recherche en cours… %1$d/%2$d</string>
+    <string name="newest_first">les plus récents d\'abord</string>
 </resources>

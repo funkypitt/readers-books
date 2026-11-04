@@ -45,6 +45,14 @@ network is used only if you set up a library on your own drive. It extends the b
   zooms in or back; a tap or back closes it) — the way to read a table. Styles and footnote
   links are dropped; footnotes are small print. MOBI means PalmDoc; no PDF (a paper in PDF
   becomes an EPUB in the desktop app, and comes here through the library).
+* **news** in the library (there only when the library holds some): the issues of newspapers and
+  magazines from every folder in one list, the newest first by the file's creation date on the
+  drive (else its last change). An issue is told from a book as the reader tells a magazine —
+  its contents page names a section and a title per article, or its articles begin with a
+  section and a headline — read on the drive without downloading the book: the end of the EPUB
+  (its zip directory), then its package and its nav, a few kilobytes each, three at a time, the
+  latest files first; what is found is remembered for each file (`library-kinds.json`) until the
+  file changes. Books already on the phone are told by what the reader found.
 * A magazine issue (an EPUB whose contents page carries a section, a title and an author per
   article, as the newspapers pipeline writes them) opens on its contents the first time:
   sections, titles, authors and larger pictures in a list that scrolls, opened on the article

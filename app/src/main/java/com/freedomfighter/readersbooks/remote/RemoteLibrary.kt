@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import java.io.File
 import java.io.IOException
 
@@ -39,6 +40,10 @@ data class Index(
     val failed: List<String> = emptyList(),
     val folders: Int = 0
 )
+
+/** What one book of the library is: an issue of a newspaper or a magazine (`news`), a book, or not known yet (null, `tries` so far). Kept for that size and that change. */
+@Serializable
+data class Kind(val size: Long, val modified: Long, val news: Boolean?, val tries: Int = 0)
 
 /** Where a scan is: folders listed, books found, folders that could not be read. */
 data class Progress(val folders: Int, val books: Int, val failed: Int = 0)
@@ -302,7 +307,90 @@ class RemoteLibrary(private val context: Context) {
     /** The account was just changed: what the drive answered to the old one no longer stands. */
     fun accountChanged() { _error.value = null }
 
-    fun forget() { cancel(); _index.value = Index(); file.delete() }
+    fun forget() { cancel(); _index.value = Index(); file.delete(); _kinds.value = emptyMap(); kindsFile.delete() }
+
+    // ---- news: which books are issues of a newspaper or a magazine ----
+
+    private val kindsFile = File(context.filesDir, "library-kinds.json")
+    private val kindsSerializer = kotlinx.serialization.builtins.MapSerializer(String.serializer(), Kind.serializer())
+    private val _kinds: MutableStateFlow<Map<String, Kind>> = MutableStateFlow(
+        runCatching { json.decodeFromString(kindsSerializer, kindsFile.readText()) }.getOrDefault(emptyMap()))
+    /** Book address → what it is. */
+    val kinds: StateFlow<Map<String, Kind>> = _kinds
+    private val _sorting = MutableStateFlow<Pair<Int, Int>?>(null)
+    /** (done, of) while the books are being told apart. */
+    val sorting: StateFlow<Pair<Int, Int>?> = _sorting
+    private var sortJob: Job? = null
+
+    private fun kindOf(b: RemoteBook, kinds: Map<String, Kind> = _kinds.value): Kind? = kinds[b.ref]?.takeIf { it.size == b.size && it.modified == b.modified }
+
+    /** The library's newspapers and magazines, the newest issue first. */
+    fun news(s: Settings, kinds: Map<String, Kind> = _kinds.value): List<RemoteBook> =
+        shown(s).filter { kindOf(it, kinds)?.news == true }.sortedByDescending { News.date(it) }
+
+    /** The EPUBs not looked at yet (or changed since), and those the drive would not answer for, three times at most. */
+    fun unsorted(s: Settings): List<RemoteBook> = shown(s).filter { b ->
+        b.extension == "epub" && kindOf(b).let { k -> k == null || (k.news == null && k.tries < ATTEMPTS) }
+    }
+
+    /**
+     * Tells the news from the books, quietly in the app, a few kilobytes read per book, the
+     * latest first (that is where the news is). Books on the phone are told by what the reader
+     * already found (`known`: address → magazine).
+     */
+    fun sortBooks(s: Settings, known: Map<String, Boolean>) {
+        if (sortJob?.isActive == true || scanning) return
+        val todo = unsorted(s)
+        if (todo.isEmpty()) return
+        val told = todo.filter { it.ref in known }
+        if (told.isNotEmpty()) {
+            _kinds.value = _kinds.value + told.associate { it.ref to Kind(it.size, it.modified, known.getValue(it.ref)) }
+            saveKinds()
+        }
+        val rest = todo.filter { it.ref !in known }.sortedByDescending { News.date(it) }
+        val remote = remote(s) ?: return
+        if (rest.isEmpty()) return
+        sortJob = scope.launch {
+            val lock = Mutex()
+            val queue = ArrayDeque(rest)
+            var done = 0
+            _sorting.value = 0 to rest.size
+            try {
+                (1..PARALLEL).map {
+                    launch {
+                        while (isActive) {
+                            val b = lock.withLock { queue.removeFirstOrNull() } ?: break
+                            val news = try {
+                                News.isNews { start, length -> remote.readRange(b.ref, start, length, b.size) }
+                            } catch (e: Unauthorized) { lock.withLock { queue.clear() }; break
+                            } catch (e: CancellationException) { throw e
+                            } catch (e: Exception) { null }
+                            lock.withLock {
+                                val old = _kinds.value[b.ref]
+                                val tries = if (news == null) (if (old != null && old.modified == b.modified) old.tries + 1 else 1) else 0
+                                _kinds.value = _kinds.value + (b.ref to Kind(b.size, b.modified, news, tries))
+                                done++
+                                _sorting.value = done to rest.size
+                                if (done % 25 == 0) saveKinds()
+                            }
+                        }
+                    }
+                }.joinAll()
+            } finally {
+                _sorting.value = null
+                saveKinds()
+            }
+        }
+    }
+
+    private fun saveKinds() {
+        runCatching {
+            val text = json.encodeToString(kindsSerializer, _kinds.value)
+            val tmp = File(kindsFile.path + ".part")
+            tmp.writeText(text)
+            tmp.renameTo(kindsFile)
+        }
+    }
 
     /** Fetch one book into a temporary file. Blocking network; call off the main thread. */
     suspend fun fetch(s: Settings, book: RemoteBook): File {

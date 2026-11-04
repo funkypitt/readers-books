@@ -40,7 +40,9 @@ data class RemoteBook(
     val ref: String,
     val size: Long = 0L,
     /** Last change, epoch millis; 0 when the server did not say. */
-    val modified: Long = 0L
+    val modified: Long = 0L,
+    /** When the file was made on the drive, epoch millis; 0 when the server did not say. */
+    val created: Long = 0L
 ) {
     val extension: String get() = name.substringAfterLast('.', "").lowercase()
     val title: String get() = name.substringBeforeLast('.').replace('_', ' ')
@@ -76,6 +78,11 @@ interface Remote {
     fun folderRef(path: String): String
     /** The path below the top of the drive of a folder's reference, decoded. */
     fun folderPath(ref: String): String
+    /**
+     * Some bytes of a file: `length` from `start`, or its last `length` when `start` is null; with
+     * the file's size. Null when the server sends the whole file instead (no byte ranges).
+     */
+    suspend fun readRange(ref: String, start: Long?, length: Int, size: Long): Pair<ByteArray, Long>? = null
 }
 
 class Unauthorized : IOException("wrong login")
@@ -100,7 +107,7 @@ class WebDav(url: String, private val username: String, private val password: St
     private val base: String = url.trim().let { if (it.endsWith("/")) it else "$it/" }
     private val auth = Credentials.basic(username, password, Charsets.UTF_8)
 
-    private class Item(val href: String, val isDir: Boolean, val size: Long, val modified: Long)
+    private class Item(val href: String, val isDir: Boolean, val size: Long, val modified: Long, val created: Long = 0L)
 
     override suspend fun roots() = listOf(base)
 
@@ -132,7 +139,7 @@ class WebDav(url: String, private val username: String, private val password: St
         if (name.substringAfterLast('.', "").lowercase() !in BOOK_EXTENSIONS) return null
         val folder = rel.substringBeforeLast('/', "").split('/').filter { it.isNotEmpty() }.joinToString("/") { it.decoded() }
         if (folder.split('/').any { skipFolder(it) }) return null
-        return RemoteBook(name, folder, i.href, i.size, i.modified)
+        return RemoteBook(name, folder, i.href, i.size, i.modified, i.created)
     }
 
     /** The path of an absolute URL below the base, still percent-encoded. */
@@ -145,7 +152,7 @@ class WebDav(url: String, private val username: String, private val password: St
     private fun String.decoded() = runCatching { URLDecoder.decode(replace("+", "%2B"), "UTF-8") }.getOrDefault(this)
 
     private fun propfind(url: String, depth: String, client: OkHttpClient): List<Item> {
-        val body = """<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:propfind>"""
+        val body = """<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:creationdate/></d:prop></d:propfind>"""
         val req = Request.Builder().url(url).method("PROPFIND", body.toRequestBody("application/xml".toMediaType()))
             .header("Authorization", auth).header("Depth", depth).build()
         client.newCall(req).execute().use { r ->
@@ -160,23 +167,24 @@ class WebDav(url: String, private val username: String, private val password: St
         val out = ArrayList<Item>()
         val p = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()
         p.setInput(stream, null)
-        var href: String? = null; var dir = false; var size = 0L; var modified = 0L; var inResource = false
+        var href: String? = null; var dir = false; var size = 0L; var modified = 0L; var created = 0L; var inResource = false
         var ev = p.eventType
         while (ev != XmlPullParser.END_DOCUMENT) {
             when (ev) {
                 XmlPullParser.START_TAG -> when (p.name) {
-                    "response" -> { href = null; dir = false; size = 0L; modified = 0L }
+                    "response" -> { href = null; dir = false; size = 0L; modified = 0L; created = 0L }
                     "href" -> href = p.nextText().trim()
                     "resourcetype" -> inResource = true
                     "collection" -> if (inResource) dir = true
                     "getcontentlength" -> size = p.nextText().trim().toLongOrNull() ?: 0L
                     "getlastmodified" -> modified = parseDate(p.nextText().trim())
+                    "creationdate" -> created = parseIso(p.nextText().trim())
                 }
                 XmlPullParser.END_TAG -> when (p.name) {
                     "resourcetype" -> inResource = false
                     "response" -> href?.let { h ->
                         val full = runCatching { URI(requested).resolve(h).toString() }.getOrElse { if (h.startsWith("http")) h else URI(requested).let { u -> "${u.scheme}://${u.rawAuthority}" } + h }
-                        if (full.trimEnd('/') != requested.trimEnd('/')) out += Item(full, dir, size, modified)
+                        if (full.trimEnd('/') != requested.trimEnd('/')) out += Item(full, dir, size, modified, created)
                     }
                 }
             }
@@ -186,6 +194,42 @@ class WebDav(url: String, private val username: String, private val password: St
     }
 
     private fun parseDate(s: String): Long = runCatching { ZonedDateTime.parse(s, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() }.getOrDefault(0L)
+
+    /** WebDAV's creationdate is ISO 8601; some servers send the RFC 1123 form anyway. */
+    private fun parseIso(s: String): Long = runCatching { java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli() }.getOrElse { parseDate(s) }
+
+    /**
+     * With the file's size known, the end is asked for from where it starts: kDrive drops the
+     * connection on a range from the end longer than the file. A connection the server closed
+     * gets two more tries.
+     */
+    override suspend fun readRange(ref: String, start: Long?, length: Int, size: Long): Pair<ByteArray, Long>? = withContext(Dispatchers.IO) {
+        var from = start
+        var len = length.toLong()
+        if (from == null && size > 0) from = maxOf(0L, size - len)
+        if (from != null && size > 0) len = minOf(len, maxOf(1L, size - from))
+        val spec = if (from == null) "bytes=-$len" else "bytes=$from-${from + len - 1}"
+        var attempt = 0
+        while (true) {
+            try {
+                val req = Request.Builder().url(ref).get().header("Authorization", auth).header("Range", spec).header("Accept-Encoding", "identity").build()
+                http.newCall(req).execute().use { r ->
+                    if (r.code == 416) return@withContext ByteArray(0) to 0L
+                    check(r.code)
+                    if (r.code != 206) return@withContext null
+                    val total = r.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: 0L
+                    return@withContext (r.body?.bytes() ?: ByteArray(0)) to total
+                }
+            } catch (e: Unauthorized) {
+                throw e
+            } catch (e: IOException) {
+                if (++attempt >= 3) throw e
+                kotlinx.coroutines.delay(500L * attempt)
+            }
+        }
+        @Suppress("UNREACHABLE_CODE")
+        null
+    }
 
     override suspend fun download(book: RemoteBook, dest: File) {
         withContext(Dispatchers.IO) {
