@@ -47,8 +47,8 @@ network is used only if you set up a library on your own drive. It extends the b
   becomes an EPUB in the desktop app, and comes here through the library).
 * A magazine issue (an EPUB whose contents page carries a section, a title and an author per
   article, as the newspapers pipeline writes them) opens on its contents the first time:
-  sections, titles, authors and larger pictures, as whole pages turned with the side thirds of
-  the screen, an article opened with a tap in the middle. An article is a chapter; a slim bar on
+  sections, titles, authors and larger pictures in a list that scrolls, opened on the article
+  read last; a tap opens an article. An article is a chapter; a slim bar on
   top leads to the previous article, the contents and the next one, and each article reopens
   where it was left. Opened again, an issue goes back to the article it was left at. Several
   issues of one magazine make one line of the shelf (« 24 heures · 3 issues »): a tap opens the

@@ -13,8 +13,8 @@ android {
         applicationId = "com.freedomfighter.readersbooks"
         minSdk = 26
         targetSdk = 34
-        versionCode = 29
-        versionName = "1.20.0"
+        versionCode = 30
+        versionName = "1.20.1"
     }
 
     buildTypes { release { isMinifyEnabled = false } }
