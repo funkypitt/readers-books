@@ -94,11 +94,25 @@ object News {
     private val CATEGORY = Regex("<p\\b[^>]*class=\"[^\"]*\\bcategory\\b", RegexOption.IGNORE_CASE)
     private val H1 = Regex("<h1\\b", RegexOption.IGNORE_CASE)
 
-    /** True for an issue of a newspaper or a magazine, false for a book, null when the drive would not say. */
-    suspend fun isNews(read: Reader): Boolean? {
-        val entries = directory(read) ?: return null
-        val opfName = entries.keys.firstOrNull { it.lowercase().endsWith(".opf") } ?: return null
-        val opf = member(read, entries, opfName) ?: return null
+    /** True for an issue or a gathering of articles, false for a book, null when the drive would not say. */
+    suspend fun isNews(read: Reader): Boolean? = kind(read).first
+
+    private val DC_DATE = Regex("<dc:date[^>]*>\\s*(\\d{4})-(\\d{2})-(\\d{2})")
+    private val TOC_TITLE = Regex("<span\\b[^>]*class=\"[^\"]*\\btoc-title\\b")
+
+    /**
+     * (news, issue date): news = true for an issue of a newspaper or a magazine, or a gathering
+     * of articles (a newsletter's, a channel's summaries: a contents page of titles, with or
+     * without their authors); false for a book; null when the drive would not say. The issue's
+     * own date (dc:date) in milliseconds, 0 when it has none.
+     */
+    suspend fun kind(read: Reader): Pair<Boolean?, Long> {
+        val entries = directory(read) ?: return null to 0L
+        val opfName = entries.keys.firstOrNull { it.lowercase().endsWith(".opf") } ?: return null to 0L
+        val opf = member(read, entries, opfName) ?: return null to 0L
+        val date = DC_DATE.find(opf)?.let { m -> runCatching {
+            java.time.LocalDate.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt())
+                .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull() } ?: 0L
         val base = if ('/' in opfName) opfName.substringBeforeLast('/') + "/" else ""
         val items = HashMap<String, String>()
         var nav: String? = null
@@ -109,17 +123,21 @@ object News {
             ID.find(tag)?.let { items[it.groupValues[1]] = path }
             if (NAV.containsMatchIn(tag)) nav = path
         }
-        nav?.let { n -> member(read, entries, n)?.let { if ("toc-cat" in it && "toc-title" in it) return true } }
+        // one title per article (a publisher may call its contents' own heading "toc-title")
+        nav?.let { n -> member(read, entries, n)?.let { if (TOC_TITLE.containsMatchIn(it)) return true to date } }
         val spine = ITEMREF.findAll(opf).mapNotNull { items[it.groupValues[1]] }.toList()
-        if (spine.size < 3) return false
+        if (spine.size < 3) return false to date
         var structured = 0
         for (k in 1..3) {
             val text = member(read, entries, spine[spine.size * k / 4]) ?: continue
             if (CATEGORY.containsMatchIn(text) && H1.containsMatchIn(text)) structured++
         }
-        return structured >= 2
+        return (structured >= 2) to date
     }
 
     /** When an issue came out, as the drive knows it: the file's creation, else its last change. */
     fun date(b: RemoteBook): Long = if (b.created > 0) b.created else b.modified
+
+    /** Its own date when it says (a file the drive made again keeps its issue's date), else the drive's. */
+    fun date(b: RemoteBook, issue: Long): Long = if (issue > 0) issue else date(b)
 }

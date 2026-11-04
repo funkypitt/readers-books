@@ -53,10 +53,11 @@ network is used only if you set up a library on your own drive. It extends the b
   new books are only looked for): on a drive of 20 000 folders, the 77 that hold books are up to
   date in seconds.
 * **news** in the library (there only when the library holds some): the issues of newspapers and
-  magazines from every folder in one list, the newest first by the file's creation date on the
-  drive (else its last change). An issue is told from a book as the reader tells a magazine —
-  its contents page names a section and a title per article, or its articles begin with a
-  section and a headline — read on the drive without downloading the book: the end of the EPUB
+  magazines, and the gatherings of articles (a newsletter's, a channel's summaries), from every
+  folder in one list, the newest first by the issue's own date (its dc:date; else the file's
+  creation on the drive, else its last change). An issue is told from a book by its contents
+  page — a title per article, with its section or its author or alone — or by articles that
+  begin with a section and a headline; read on the drive without downloading the book: the end of the EPUB
   (its zip directory), then its package and its nav, a few kilobytes each, three at a time, the
   latest files first; what is found is remembered for each file (`library-kinds.json`) until the
   file changes. Books already on the phone are told by what the reader found.

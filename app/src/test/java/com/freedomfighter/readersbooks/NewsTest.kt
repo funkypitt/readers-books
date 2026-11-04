@@ -49,6 +49,23 @@ class NewsTest {
         assertEquals(false, News.isNews(reader(bytes)))
     }
 
+    @Test fun aNewslettersArticlesAreNewsTooWithTheIssuesOwnDate() = runBlocking {
+        val opf = opf(3, true).replace("<package>", "<package><metadata><dc:date>2026-04-16</dc:date></metadata>")
+        val bytes = epub(mapOf("OEBPS/content.opf" to opf,
+            "OEBPS/toc.xhtml" to "<nav><ol><li><a href=\"c0.xhtml\"><span class=\"toc-title\">Selling the EU</span><span class=\"toc-author\">Thomas Fazi</span></a></li></ol></nav>") +
+            (0 until 3).associate { "OEBPS/c$it.xhtml" to "<html><body><h1>Titre</h1></body></html>" })
+        val (news, date) = News.kind(reader(bytes))
+        assertEquals(true, news)
+        assertEquals(java.time.LocalDate.of(2026, 4, 16).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), date)
+    }
+
+    @Test fun aPublishersContentsHeadingIsNoNews() = runBlocking {
+        val bytes = epub(mapOf("OEBPS/content.opf" to opf(4, true),
+            "OEBPS/toc.xhtml" to "<nav><h1 class=\"toc-title\">Contents</h1><ol><li><a href=\"c0.xhtml\">Chapter 1</a></li></ol></nav>") +
+            (0 until 4).associate { "OEBPS/c$it.xhtml" to "<html><body><h1>Chapter $it</h1></body></html>" })
+        assertEquals(false, News.isNews(reader(bytes)))
+    }
+
     @Test fun aServerWithoutRangesSaysNothing() = runBlocking {
         assertNull(News.isNews { _, _ -> null })
     }

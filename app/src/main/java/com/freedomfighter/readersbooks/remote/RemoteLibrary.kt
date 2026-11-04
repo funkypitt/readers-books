@@ -43,7 +43,10 @@ data class Index(
 
 /** What one book of the library is: an issue of a newspaper or a magazine (`news`), a book, or not known yet (null, `tries` so far). Kept for that size and that change. */
 @Serializable
-data class Kind(val size: Long, val modified: Long, val news: Boolean?, val tries: Int = 0)
+data class Kind(val size: Long, val modified: Long, val news: Boolean?, val tries: Int = 0, val date: Long = 0L, val version: Int = 0)
+
+/** 2: gatherings of articles count too, and issues carry their own date. */
+const val KINDS_VERSION = 2
 
 /** Where a scan is: folders listed, books found, folders that could not be read. */
 data class Progress(val folders: Int, val books: Int, val failed: Int = 0)
@@ -352,11 +355,16 @@ class RemoteLibrary(private val context: Context) {
     val sorting: StateFlow<Pair<Int, Int>?> = _sorting
     private var sortJob: Job? = null
 
-    private fun kindOf(b: RemoteBook, kinds: Map<String, Kind> = _kinds.value): Kind? = kinds[b.ref]?.takeIf { it.size == b.size && it.modified == b.modified }
+    private fun kindOf(b: RemoteBook, kinds: Map<String, Kind> = _kinds.value): Kind? =
+        kinds[b.ref]?.takeIf { it.version == KINDS_VERSION && it.size == b.size && it.modified == b.modified }
 
-    /** The library's newspapers and magazines, the newest issue first. */
+    /** When an issue came out: its own date, else the drive's. */
+    fun issueDate(b: RemoteBook, kinds: Map<String, Kind> = _kinds.value): Long = News.date(b, kindOf(b, kinds)?.date ?: 0L)
+
+    /** The library's newspapers, magazines and gatherings of articles, the newest issue first. */
     fun news(s: Settings, kinds: Map<String, Kind> = _kinds.value): List<RemoteBook> =
-        shown(s).filter { kindOf(it, kinds)?.news == true }.sortedByDescending { News.date(it) }
+        shown(s).filter { kindOf(it, kinds)?.news == true }
+            .sortedWith(compareByDescending<RemoteBook> { issueDate(it, kinds) }.thenByDescending { News.date(it) })
 
     /** The EPUBs not looked at yet (or changed since), and those the drive would not answer for, three times at most. */
     fun unsorted(s: Settings): List<RemoteBook> = shown(s).filter { b ->
@@ -368,39 +376,57 @@ class RemoteLibrary(private val context: Context) {
      * latest first (that is where the news is). Books on the phone are told by what the reader
      * already found (`known`: address → magazine).
      */
+    private val sortQueue = ArrayDeque<RemoteBook>()
+    private val sortBusy = HashSet<String>()
+    private val sortLock = Mutex()
+
     fun sortBooks(s: Settings, known: Map<String, Boolean>) {
-        if (sortJob?.isActive == true || scanning) return
         val todo = unsorted(s)
         if (todo.isEmpty()) return
         val told = todo.filter { it.ref in known }
         if (told.isNotEmpty()) {
-            _kinds.value = _kinds.value + told.associate { it.ref to Kind(it.size, it.modified, known.getValue(it.ref)) }
+            _kinds.value = _kinds.value + told.associate { it.ref to Kind(it.size, it.modified, known.getValue(it.ref), version = KINDS_VERSION) }
             saveKinds()
         }
         val rest = todo.filter { it.ref !in known }.sortedByDescending { News.date(it) }
-        val remote = remote(s) ?: return
         if (rest.isEmpty()) return
+        if (sortJob?.isActive == true) {
+            // books new to the library go before what the first pass has still to look at
+            scope.launch {
+                sortLock.withLock {
+                    val queued = sortQueue.map { it.ref }.toSet()
+                    val new = rest.filter { it.ref !in queued && it.ref !in sortBusy }
+                    new.asReversed().forEach { sortQueue.addFirst(it) }
+                    _sorting.value?.let { (d, n) -> _sorting.value = d to n + new.size }
+                }
+            }
+            return
+        }
+        if (scanning) return
+        val remote = remote(s) ?: return
         sortJob = scope.launch {
-            val lock = Mutex()
-            val queue = ArrayDeque(rest)
+            val lock = sortLock
+            val queue = sortQueue
+            lock.withLock { queue.clear(); queue.addAll(rest) }
             var done = 0
             _sorting.value = 0 to rest.size
             try {
                 (1..PARALLEL).map {
                     launch {
                         while (isActive) {
-                            val b = lock.withLock { queue.removeFirstOrNull() } ?: break
-                            val news = try {
-                                News.isNews { start, length -> remote.readRange(b.ref, start, length, b.size) }
-                            } catch (e: Unauthorized) { lock.withLock { queue.clear() }; break
+                            val b = lock.withLock { queue.removeFirstOrNull()?.also { sortBusy += it.ref } } ?: break
+                            val (news, date) = try {
+                                News.kind { start, length -> remote.readRange(b.ref, start, length, b.size) }
+                            } catch (e: Unauthorized) { lock.withLock { queue.clear(); sortBusy -= b.ref }; break
                             } catch (e: CancellationException) { throw e
-                            } catch (e: Exception) { null }
+                            } catch (e: Exception) { null to 0L }
                             lock.withLock {
+                                sortBusy -= b.ref
                                 val old = _kinds.value[b.ref]
                                 val tries = if (news == null) (if (old != null && old.modified == b.modified) old.tries + 1 else 1) else 0
-                                _kinds.value = _kinds.value + (b.ref to Kind(b.size, b.modified, news, tries))
+                                _kinds.value = _kinds.value + (b.ref to Kind(b.size, b.modified, news, tries, date, KINDS_VERSION))
                                 done++
-                                _sorting.value = done to rest.size
+                                _sorting.value = done to maxOf(_sorting.value?.second ?: 0, done)
                                 if (done % 25 == 0) saveKinds()
                             }
                         }

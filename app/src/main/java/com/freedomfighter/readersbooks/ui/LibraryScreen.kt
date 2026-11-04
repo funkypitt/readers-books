@@ -204,7 +204,7 @@ fun LibraryScreen(nav: Nav, app: App) {
                     // the newspapers and magazines, together, the newest first: there only when the library has some
                     if (news.isNotEmpty()) item {
                         val line = listOfNotNull(pluralStringResource(R.plurals.n_issues, news.size, news.size),
-                            stringResource(R.string.latest_issue, dateLabel(com.freedomfighter.readersbooks.remote.News.date(news[0]))),
+                            stringResource(R.string.latest_issue, dateLabel(app.remote.issueDate(news[0], kinds))),
                             sorting?.let { stringResource(R.string.looking_for_more, it.first, it.second) }).joinToString(" · ")
                         TextRow(stringResource(R.string.news), secondary = line) { nav.push(Screen.News) }
                     }
@@ -387,7 +387,7 @@ fun NewsScreen(nav: Nav, app: App) {
     val books = remember(index, kinds, s.libraryFolders, s.libraryExcluded) { app.remote.news(s, kinds) }
     BookList(nav, app, stringResource(R.string.news), books, showFolder = true,
         order = pluralStringResource(R.plurals.n_issues, books.size, books.size) + " · " + stringResource(R.string.newest_first),
-        orders = emptyList(), dated = { com.freedomfighter.readersbooks.remote.News.date(it) })
+        orders = emptyList(), dated = { app.remote.issueDate(it, kinds) })
 }
 
 @Composable
