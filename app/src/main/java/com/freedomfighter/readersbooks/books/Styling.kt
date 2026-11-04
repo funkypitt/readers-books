@@ -184,7 +184,7 @@ internal class Tree(private val sheet: Css.Sheet?, private val fb2: Boolean) {
         }
         val n = node(name, attrs, current)
         when (name) {
-            "ol", "ul" -> n.counter = (attrs["start"]?.trim()?.toIntOrNull() ?: 1) - 1
+            "ol", "ul" -> { n.ordinal = attrs["start"]?.trim()?.toIntOrNull() ?: 1; n.counter = n.ordinal - 1 }
             "li" -> nearest(current, setOf("ul", "ol")).takeIf { it > 0 }?.let { l ->
                 val list = nodes[l]
                 list.counter = attrs["value"]?.trim()?.toIntOrNull() ?: (list.counter + 1)

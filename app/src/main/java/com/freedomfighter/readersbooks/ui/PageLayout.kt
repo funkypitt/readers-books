@@ -249,6 +249,25 @@ private fun markerText(look: Look): String? = when (look.marker) {
     else -> null
 }
 
+/** The gap between a marker and its item's text. */
+private const val MARKER_GAP = 0.4f
+
+/**
+ * The width of a list's column of markers: its widest marker, measured in the reader's font, and
+ * the gap after it. Zero for what is not a list item.
+ */
+private fun markerGutter(look: Look, f: Frame): Int {
+    if (look.listMarker == 0) return 0
+    var widest = 0f
+    val to = minOf(look.listTo, look.listFrom + 400)
+    for (n in look.listFrom..maxOf(look.listFrom, to)) {
+        val text = markerText(Look(marker = look.listMarker, number = n)) ?: return 0
+        widest = maxOf(widest, f.paint.measureText(text))
+        if (look.listMarker < Look.DECIMAL) break // a bullet is the same for every item
+    }
+    return Math.round(widest + f.em * MARKER_GAP)
+}
+
 private fun alpha(n: Int): String {
     if (n <= 0) return "$n"
     var k = n; val sb = StringBuilder()
@@ -414,9 +433,12 @@ private fun buildRun(block: Block.Text, from: Int, to: Int, base: Int, f: Frame,
         runs(sb, p, dropped, p.text.length) { laidOf[it] }
         smallCaps(sb, p, cases, dropped, p.text.length) { laidOf[it] }
         // margins, indent, marker, drop cap, alignment: one span per line of the paragraph
-        // a list's marker sits in the margin: the margin is never narrower than it
+        // a list's markers sit in a column of the margin as wide as the widest of them (IV., 28.),
+        // never past the margin the list stands in; the item's text begins after it
         val marker = markerText(look)
-        val left = maxOf(f.px(look.left).coerceAtMost(f.widthPx * 35 / 100), if (marker != null) Math.round(f.paint.measureText(marker) + f.em * 0.6f) else 0)
+        val gutter = markerGutter(look, f)
+        val left = maxOf(f.px(look.left).coerceAtMost(f.widthPx * 35 / 100), if (gutter > 0) f.px(look.listLeft) + gutter else 0)
+            .coerceAtMost(f.widthPx / 2)
         val first = if (look.indent.isNaN() || look.dropCap > 0) 0 else f.px(look.indent)
         var drop: String? = null
         var dropPaint: TextPaint? = null
@@ -437,7 +459,7 @@ private fun buildRun(block: Block.Text, from: Int, to: Int, base: Int, f: Frame,
         for ((n, c) in chunks.withIndex()) {
             val e = if (n + 1 < chunks.size) chunks[n + 1] else end
             val firstPx = (left + (if (indent) f.px(INDENT) else 0) + if (n == 0) first + dropWidth else 0).coerceIn(0, f.widthPx / 2)
-            sb.setSpan(Margin(firstPx, left, left, if (n == 0) marker else null, if (n == 0) drop else null, dropPaint, Math.round(f.em * 0.4f)), c, e, x)
+            sb.setSpan(Margin(firstPx, left, left, if (n == 0) marker else null, if (n == 0) drop else null, dropPaint, Math.round(f.em * MARKER_GAP)), c, e, x)
             when (look.align) {
                 Look.CENTER -> sb.setSpan(AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER), c, e, x)
                 Look.RIGHT -> sb.setSpan(AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), c, e, x)

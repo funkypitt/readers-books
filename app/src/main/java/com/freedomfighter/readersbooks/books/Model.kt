@@ -57,7 +57,10 @@ class Para(val text: String, val kind: ParaKind = ParaKind.NORMAL, val styles: I
  * - `cells`: a table row: (start, end, row, column, columns spanned, header) per cell, in a table
  *   numbered `table` in its chapter;
  * - `width`: a picture's width as a part of the text's (NaN = its own size); `pixels`: the width
- *   the page gives it in CSS pixels (0 = the picture's own).
+ *   the page gives it in CSS pixels (0 = the picture's own);
+ * - `listMarker`, `listFrom`..`listTo`, `listLeft`: for every paragraph of a list item, the
+ *   kind of marker of its list, the numbers its items run through and the margin the list
+ *   stands in, so that the reader can make the markers' column as wide as the widest of them.
  */
 class Look(
     val align: Int = AUTO,
@@ -78,6 +81,10 @@ class Look(
     val table: Int = 0,
     val width: Float = Float.NaN,
     val pixels: Int = 0,
+    val listMarker: Int = 0,
+    val listFrom: Int = 0,
+    val listTo: Int = 0,
+    val listLeft: Float = 0f,
 ) {
     /** The look of the part from `from` to `to`: what belongs to its first line goes with the first part only. */
     fun slice(from: Int, to: Int): Look {
@@ -92,7 +99,7 @@ class Look(
             if (out.isEmpty()) null else out.toIntArray()
         }
         return Look(align, if (first) indent else 0f, left, right, if (first) above else 0f, first && pageBreak, first && rule,
-            size, flags, level, if (first) marker else 0, number, if (first) dropCap else 0, soft, cells, table, width, pixels)
+            size, flags, level, if (first) marker else 0, number, if (first) dropCap else 0, soft, cells, table, width, pixels, listMarker, listFrom, listTo, listLeft)
     }
 
     companion object {

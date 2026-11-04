@@ -604,10 +604,20 @@ object HtmlText {
             val bs = tree.style(block)
             val (left, right) = margins(block)
             var marker = 0; var number = 0; var level = 0
+            var listMarker = 0; var listFrom = 0; var listTo = 0; var listLeft = 0f
             var n = block
             while (n > 0) {
                 val tag = tree.nodes[n].tag
                 if (tag == "li" && marker == 0 && n in o.opened) { marker = tree.style(n).listType.coerceAtLeast(0); number = tree.nodes[n].ordinal }
+                if (tag == "li" && listMarker == 0) {
+                    // the list this item is in: its kind of marker, its numbers, the margin it stands in
+                    val list = tree.nodes[n].parent.takeIf { it > 0 && tree.nodes[it].tag.let { t -> t == "ul" || t == "ol" } }
+                    listMarker = tree.style(n).listType.coerceAtLeast(0)
+                    if (list != null && listMarker > 0) {
+                        listFrom = tree.nodes[list].ordinal; listTo = maxOf(tree.nodes[list].counter, listFrom)
+                        listLeft = margins(tree.nodes[list].parent).first
+                    } else listMarker = 0
+                }
                 if (level == 0 && tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6') level = tag[1] - '0'
                 n = tree.nodes[n].parent
             }
@@ -624,7 +634,8 @@ object HtmlText {
                 align = bs.align, indent = bs.indent.let { if (it.isNaN()) it else it.coerceIn(-MAX_INDENT, MAX_INDENT) },
                 left = left, right = right, above = o.above, pageBreak = o.pageBreak, rule = o.rule,
                 size = size, flags = blockFlags, level = level, marker = marker, number = number,
-                dropCap = dropCap(t, node, block, bs), soft = soft, cells = cells(t, node), table = maxOf(0, tree.tableOf(node))
+                dropCap = dropCap(t, node, block, bs), soft = soft, cells = cells(t, node), table = maxOf(0, tree.tableOf(node)),
+                listMarker = listMarker, listFrom = listFrom, listTo = listTo, listLeft = listLeft
             )
             return styles to look
         }
