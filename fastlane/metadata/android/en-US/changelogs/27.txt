@@ -1,0 +1,1 @@
+With a library set up, the app opens on it: at the top, the book you were reading, one tap from its page, then the books on this phone. Highlights and comments now work in every book, also those opened from this phone; they go to the library with the book. Without a library, the shelf shows how to set one up.

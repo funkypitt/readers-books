@@ -128,19 +128,18 @@ fun LibraryScreen(nav: Nav, app: App) {
             pendingScan = fresh; askNotif.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         } else app.remote.requestScan(s, fresh)
     }
-    BackHandler { nav.pop() }
-    // a drive just set up, or set up differently, is walked at once; a walk cut short carries on;
-    // a library not synced for a while is synced again quietly; a fresh one only looks for new transcripts
+    // the home screen when a drive is set up: back from it leaves the app
+    BackHandler(enabled = !nav.atHome) { nav.pop() }
+    // a drive just set up, or set up differently, is walked at once; otherwise the drive is only
+    // synced by hand (« sync now », « continue the scan »), and only new transcripts are looked for
     LaunchedEffect(s.url, s.username, s.password) {
         if (!s.libraryConfigured || progress != null) return@LaunchedEffect
         if (!app.remote.matches(s)) scan(true)
-        else if (!index.complete && error == null) scan(false)
-        else if (app.remote.stale() && error == null) app.remote.syncQuietly(s)
         else app.remote.refreshFolder(s)
     }
     Page {
         Column(Modifier.fillMaxSize()) {
-            ScreenTitle(stringResource(R.string.library), onBack = { nav.pop() }, trailing = if (s.libraryConfigured) "⋯" else null, onTrailing = { menu = true })
+            ScreenTitle(stringResource(R.string.library), onBack = if (nav.atHome) null else ({ nav.pop() }), trailing = if (s.libraryConfigured) "⋯" else null, onTrailing = { menu = true })
             if (!s.libraryConfigured) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Small(stringResource(R.string.library_hint), Modifier.padding(horizontal = rowPadH).padding(top = 16.dp, bottom = 4.dp), maxLines = 12)
@@ -153,6 +152,7 @@ fun LibraryScreen(nav: Nav, app: App) {
                 val shown = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.shown(s) }
                 val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
+                    homeRows(nav, app)
                     // the sync, by hand, with where it is or when it last ran
                     item {
                         val state = progress?.let { p -> stringResource(R.string.scanning, p.folders, p.books) } ?: if (index.scannedAt > 0L) stringResource(R.string.scanned_at, dateLabel(index.scannedAt)) else null
@@ -200,6 +200,22 @@ fun LibraryScreen(nav: Nav, app: App) {
         if (orderMenu) TextMenu(stringResource(R.string.order), FolderSort.entries.map { o -> MenuItem(folderSortLabel(o)) { app.prefs.setFolderSort(o) } }, onDismiss = { orderMenu = false })
         LibraryAccountPrompt(app, s, prompt) { prompt = null }
         CredentialsExportMenu(export)
+    }
+}
+
+/**
+ * The top of the library: the book read last, one tap from its page, and the books on this
+ * phone (the shelf). Rows of a LazyColumn.
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.homeRows(nav: Nav, app: App) {
+    item(key = "home-continue") {
+        val books by app.library.books.collectAsState()
+        val last = remember(books) { books.filter { it.opened > 0L }.maxByOrNull { it.opened } }
+        last?.let { e -> TextRow(e.title, secondary = stringResource(R.string.continue_reading) + " · ${e.progress}%") { nav.push(Screen.Book(e.id)) } }
+    }
+    item(key = "home-shelf") {
+        val books by app.library.books.collectAsState()
+        TextRow(stringResource(R.string.on_this_phone), secondary = pluralStringResource(R.plurals.n_books, books.size, books.size)) { nav.push(Screen.Shelf) }
     }
 }
 

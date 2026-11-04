@@ -149,7 +149,7 @@
     <string name="notes_username">username for the notes</string>
     <string name="notes_password">password for the notes</string>
     <string name="same_as_library">same as the library</string>
-    <string name="highlights_hint">Highlights: in a book from the library, press and hold a word, then slide over the passage to highlight it, with a comment if you like; a tap on a highlight shows its comment. They are kept next to the book on the drive, with the page you are at, and follow it to your other devices. The book\'s menu exports them. With the WebDAV address of the Reader\'s Notes folder given below, a note per book lists its highlights in Reader\'s Notes.</string>
+    <string name="highlights_hint">Highlights: in any book, press and hold a word, then slide over the passage to highlight it, with a comment if you like; a tap on a highlight shows its comment. In a book from the library they are kept next to the book on the drive, with the page you are at, and follow it to your other devices; in a book opened from this phone they stay on this phone, and go to the library with the book if it is added to it. The book\'s menu exports them. With the WebDAV address of the Reader\'s Notes folder given below, a note per book lists its highlights in Reader\'s Notes.</string>
     <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
     <string name="keep_on_phone">keep on the phone</string>
     <string name="keep_on_phone_hint">downloaded now, to read without a connection; stays on the shelf</string>
@@ -172,4 +172,9 @@
         <item quantity="one">%d kept on the phone</item>
         <item quantity="other">%d kept on the phone</item>
     </plurals>
+    <!-- the home screen: the library with the book read last and the shelf; the shelf alone invites to set one up -->
+    <string name="on_this_phone">on this phone</string>
+    <string name="continue_reading">continue reading</string>
+    <string name="setup_library">set up a library</string>
+    <string name="setup_library_hint">your books on your drive, on all your devices</string>
 </resources>

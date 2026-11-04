@@ -48,8 +48,6 @@ data class Folder(val path: String, val count: Int, val modified: Long = 0L, val
 
 /** Where Reader's Podcasts puts what was said in an episode, a small book each. */
 const val TRANSCRIPTS_FOLDER = "transcriptions"
-/** Opened later than this after the last sync, the library is synced again by itself. */
-const val STALE_AFTER_MS = 10 * 60 * 1000L
 private const val MAX_FOLDERS = 20000
 private const val PARALLEL = 3
 private const val ATTEMPTS = 3
@@ -108,9 +106,6 @@ class RemoteLibrary(private val context: Context) {
     /** True when a folder holds books in folders inside it. */
     fun hasSubfolders(s: Settings, folder: String): Boolean = shown(s).any { it.folder != folder && Folders.under(folder, it.folder) }
 
-    /** True when the last sync is old enough for the library to sync again by itself at its opening. */
-    fun stale(now: Long = System.currentTimeMillis()) = now - _index.value.scannedAt > STALE_AFTER_MS
-
     /**
      * Ask for a sync by hand, in the foreground service: from scratch when `fresh` (or when the
      * account changed), else carrying on an unfinished walk, else the whole library again.
@@ -122,7 +117,7 @@ class RemoteLibrary(private val context: Context) {
         if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
     }
 
-    /** The sync at the opening of the library: the same walk, quietly in the app, without a notification. */
+    /** The sync after the folders of the library were chosen again: the same walk, quietly in the app, without a notification. */
     fun syncQuietly(s: Settings) { if (!scanning && matches(s)) scan(s, false) }
 
     /** Called by the service once it is in the foreground. Returns the job to wait for. */

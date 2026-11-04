@@ -36,7 +36,11 @@ data class Entry(
     /** Bytes of the file on the phone. */
     val size: Long = 0L,
     /** Kept on the phone: left where it is when the shelf is cleared of books not read for a while. */
-    val kept: Boolean = false
+    val kept: Boolean = false,
+    /** What tells the same book in two copies (see [BookIdentity]): the SHA-256 of the file, "" until learnt. */
+    val fingerprint: String = "",
+    /** The EPUB's own identifier, "" for none. */
+    val bookId: String = ""
 ) {
     /** A book fetched from the drive (or sent to it): the one kind that has highlights, a place that travels, and a copy to go back to. */
     val fromLibrary: Boolean get() = source?.let { it.startsWith("http://") || it.startsWith("https://") } == true
@@ -64,6 +68,12 @@ class Library(private val context: Context) {
     private val images = object : LinkedHashMap<String, ImageStore>(HELD + 1, 0.75f, true) { override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageStore>) = size > HELD }
     /** Told of every book that leaves the shelf, so that what else was kept for it goes too. */
     var onRemoved: ((Entry) -> Unit)? = null
+    /**
+     * Told when a book of the shelf goes on under another entry or another address — the same
+     * book fetched from the library, opened again, or sent to the drive — so that its highlights
+     * follow it. Called before the call that made the change returns.
+     */
+    var onMoved: ((from: Entry, to: Entry) -> Unit)? = null
 
     // entries from before sizes were kept learn theirs once
     private fun load(): List<Entry> = runCatching { json.decodeFromString(LibraryState.serializer(), file.readText()).books }.getOrDefault(emptyList())
@@ -87,7 +97,11 @@ class Library(private val context: Context) {
     }
 
     /** A book of the shelf that was just sent to the drive: from now on a book of the library, by that address and that file name. */
-    fun link(id: String, source: String, sourceName: String) = update { l -> l.map { if (it.id == id) it.copy(source = source, sourceName = sourceName) else it } }
+    fun link(id: String, source: String, sourceName: String) {
+        val before = get(id) ?: return
+        update { l -> l.map { if (it.id == id) it.copy(source = source, sourceName = sourceName) else it } }
+        get(id)?.let { onMoved?.invoke(before, it) }
+    }
 
     fun touch(id: String) = update { l -> l.map { if (it.id == id) it.copy(opened = System.currentTimeMillis()) else it } }
 
@@ -129,12 +143,37 @@ class Library(private val context: Context) {
         val target = File(dir, fileName)
         if (!tmp.renameTo(target)) { tmp.copyTo(target, overwrite = true); tmp.delete() }
         synchronized(cache) { cache[fileName] = book }
-        // the same book again (from the same place on the drive, else by title) replaces the old copy but keeps its place
-        val same = source?.let { s -> _books.value.firstOrNull { it.source == s } } ?: _books.value.firstOrNull { it.title == book.title && it.format == format }
+        val fingerprint = BookIdentity.fingerprint(target)
+        val bookId = BookIdentity.epubId(target, format)
+        val same = sameAs(Entry(id, fileName, book.title, format, 0L, fingerprint = fingerprint, bookId = bookId), source)
         val entry = Entry(id, fileName, book.title, format, added = System.currentTimeMillis(), opened = same?.opened ?: 0L, chapter = same?.chapter ?: 0, charOffset = same?.charOffset ?: 0, progress = same?.progress ?: 0, magazine = book.magazine != null, source = source ?: same?.source, sourceName = if (source != null || same?.source == null) displayName else same.sourceName,
-            sourceModified = if (source != null) sourceModified else same?.sourceModified ?: 0L, size = target.length(), kept = kept || same?.kept == true)
+            sourceModified = if (source != null) sourceModified else same?.sourceModified ?: 0L, size = target.length(), kept = kept || same?.kept == true, fingerprint = fingerprint, bookId = bookId)
         update { l -> l.filter { it.id != same?.id }.also { same?.let { s -> File(dir, s.fileName).delete() } } + entry }
+        same?.let { onMoved?.invoke(it, entry) }
         entry
+    }
+
+    /**
+     * The copy on the shelf that a book just opened replaces, keeping its place (and its
+     * highlights): from the same place on the drive; else the same book ([BookIdentity]) — for
+     * a book of the library, only a copy that is not on the drive itself; for a file opened
+     * here, also one with the same title and format, which is how a new copy of a book opened
+     * again has always found its page. Copies that never had their fingerprint learn it here.
+     */
+    private fun sameAs(new: Entry, source: String?): Entry? {
+        source?.let { s -> _books.value.firstOrNull { it.source == s } }?.let { return it }
+        learnFingerprints(new.format)
+        val books = _books.value
+        return if (source != null) books.firstOrNull { !it.fromLibrary && BookIdentity.same(it, new) }
+        else books.firstOrNull { BookIdentity.same(it, new) } ?: books.firstOrNull { it.title == new.title && it.format == new.format }
+    }
+
+    /** Books of the shelf from before fingerprints were kept, of one format: theirs read once and kept. */
+    private fun learnFingerprints(format: BookFormat) {
+        val missing = _books.value.filter { it.fingerprint.isEmpty() && it.format == format }
+            .associate { it.id to (BookIdentity.fingerprint(File(dir, it.fileName)) to BookIdentity.epubId(File(dir, it.fileName), it.format)) }
+            .filterValues { it.first.isNotEmpty() }
+        if (missing.isNotEmpty()) update { l -> l.map { e -> missing[e.id]?.let { (f, b) -> e.copy(fingerprint = f, bookId = b) } ?: e } }
     }
 
     /** Parse (or fetch from cache) a book. Blocking; call off the main thread. */

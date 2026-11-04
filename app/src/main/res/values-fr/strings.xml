@@ -150,7 +150,7 @@
     <string name="notes_username">nom d\'utilisateur pour les notes</string>
     <string name="notes_password">mot de passe pour les notes</string>
     <string name="same_as_library">comme la bibliothèque</string>
-    <string name="highlights_hint">Surlignages : dans un livre de la bibliothèque, appuyez longuement sur un mot, puis glissez sur le passage pour le surligner, avec un commentaire si vous le voulez ; un toucher sur un surlignage montre son commentaire. Ils sont gardés à côté du livre sur le drive, avec la page où vous êtes, et le suivent sur vos autres appareils. Le menu du livre les exporte. Avec l\'adresse WebDAV du dossier de Reader\'s Notes donnée ci-dessous, une note par livre reprend ses surlignages dans Reader\'s Notes.</string>
+    <string name="highlights_hint">Surlignages : dans n\'importe quel livre, appuyez longuement sur un mot, puis glissez sur le passage pour le surligner, avec un commentaire si vous le voulez ; un toucher sur un surlignage montre son commentaire. Dans un livre de la bibliothèque, ils sont gardés à côté du livre sur le drive, avec la page où vous êtes, et le suivent sur vos autres appareils ; dans un livre ouvert depuis ce téléphone, ils restent sur ce téléphone, et vont à la bibliothèque avec le livre s\'il y est ajouté. Le menu du livre les exporte. Avec l\'adresse WebDAV du dossier de Reader\'s Notes donnée ci-dessous, une note par livre reprend ses surlignages dans Reader\'s Notes.</string>
     <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
     <string name="keep_on_phone">garder sur le téléphone</string>
     <string name="keep_on_phone_hint">téléchargé maintenant, pour lire sans connexion ; reste sur l\'étagère</string>
@@ -173,4 +173,9 @@
         <item quantity="one">%d gardé sur le téléphone</item>
         <item quantity="other">%d gardés sur le téléphone</item>
     </plurals>
+    <!-- the home screen: the library with the book read last and the shelf; the shelf alone invites to set one up -->
+    <string name="on_this_phone">sur ce téléphone</string>
+    <string name="continue_reading">reprendre la lecture</string>
+    <string name="setup_library">configurer une bibliothèque</string>
+    <string name="setup_library_hint">vos livres sur votre drive, sur tous vos appareils</string>
 </resources>

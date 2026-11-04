@@ -9,18 +9,24 @@ network is used only if you set up a library on your own drive. It extends the b
 
 ## Key points
 
-* The shelf lists title, how far you are, when you last opened it. Tap to read.
+* The shelf lists title, how far you are, when you last opened it. Tap to read. With a library
+  set up, the app opens on the library instead: at its top, the book read last (one tap and it
+  is at its page), then "on this phone", the shelf. Without one, a quiet line under the shelf
+  leads to setting one up.
 * A tap on the right third of the screen turns forward, on the left third back, in the middle
   it opens the menu: chapters, larger or smaller text, book text in sans-serif or serif
   (Literata), back to the shelf, remove.
 * The faces travel with the app: Roboto Light, Literata and Roboto Mono are in the APK, so the
   text looks the same on every device, whatever font the device has set.
-* Highlights and comments, in the books of the library: press and hold a word, slide over the
+* Highlights and comments, in every book: press and hold a word, slide over the
   passage, then "highlight" or "comment". A highlight is a grey band behind the words, with a
   line under it when it carries a comment; a tap on it shows the comment, changes it or removes
-  the highlight. They are kept in a file next to the book on the drive
+  the highlight. In a book of the library they are kept in a file next to the book on the drive
   (`<book file>.highlights.json`), so every device that opens the book has them: each device
-  folds its own into that file, highlight by highlight, the one changed last winning. The
+  folds its own into that file, highlight by highlight, the one changed last winning. A book
+  opened from the phone keeps them on the phone, in a file of the same form; when the same book
+  comes from the library later (the same file, or an EPUB with the same identifier and title),
+  or is added to it, they are folded into the library's. The
   book's menu exports them as text. Given the WebDAV address of the Reader's Notes folder, the
   app also keeps a note per book there (folder `Reader's Books`): the passages between
   quotation marks, in the order of the book, each followed by its comment —
@@ -58,11 +64,10 @@ network is used only if you set up a library on your own drive. It extends the b
   their highlights and their place — unless kept; nothing leaves unless you ask. A book whose
   copy on the drive is newer says so, and its menu downloads it again, the page you are at kept.
   Without a connection, the library shows its last list and says so; what is on the shelf reads
-  as ever. The library syncs by itself when opened after
-  ten minutes or more, and at once with the "sync now" row at its top; what is known stays on
+  as ever. The library syncs with the "sync now" row near its top; what is known stays on
   the screen while the drive is walked, new books appear, books gone from the drive go. Asked
   for by hand, a sync keeps going while the phone is locked (a quiet notification counts
-  folders and books) and carries on where it stopped if it is cut short. Once the drive has
+  folders and books); cut short, "continue the scan" carries it on where it stopped. Once the drive has
   been walked, the library offers to keep only some of its folders (with everything inside
   them): fewer folders, faster syncs — the choice is in the library's menu and in the settings.
   A folder held long is left out instead, with everything inside it, whatever else is chosen:

@@ -150,7 +150,7 @@
     <string name="notes_username">utilizador para as notas</string>
     <string name="notes_password">palavra-passe para as notas</string>
     <string name="same_as_library">como a biblioteca</string>
-    <string name="highlights_hint">Destaques: num livro da biblioteca, mantenha uma palavra premida e deslize sobre a passagem para a destacar, com um comentário se quiser; um toque num destaque mostra o seu comentário. Ficam ao lado do livro na drive, com a página em que está, e acompanham-no nos seus outros aparelhos. O menu do livro exporta-os. Com o endereço WebDAV da pasta do Reader\'s Notes indicado abaixo, uma nota por livro reúne os seus destaques no Reader\'s Notes.</string>
+    <string name="highlights_hint">Destaques: em qualquer livro, mantenha uma palavra premida e deslize sobre a passagem para a destacar, com um comentário se quiser; um toque num destaque mostra o seu comentário. Num livro da biblioteca ficam ao lado do livro na drive, com a página em que está, e acompanham-no nos seus outros aparelhos; num livro aberto a partir deste telefone ficam neste telefone, e vão para a biblioteca com o livro se ele lhe for adicionado. O menu do livro exporta-os. Com o endereço WebDAV da pasta do Reader\'s Notes indicado abaixo, uma nota por livro reúne os seus destaques no Reader\'s Notes.</string>
     <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
     <string name="keep_on_phone">manter no telemóvel</string>
     <string name="keep_on_phone_hint">descarregado agora, para ler sem ligação; fica na estante</string>
@@ -173,4 +173,9 @@
         <item quantity="one">%d mantido no telemóvel</item>
         <item quantity="other">%d mantidos no telemóvel</item>
     </plurals>
+    <!-- the home screen: the library with the book read last and the shelf; the shelf alone invites to set one up -->
+    <string name="on_this_phone">neste telefone</string>
+    <string name="continue_reading">continuar a ler</string>
+    <string name="setup_library">configurar uma biblioteca</string>
+    <string name="setup_library_hint">os seus livros na sua drive, em todos os seus aparelhos</string>
 </resources>

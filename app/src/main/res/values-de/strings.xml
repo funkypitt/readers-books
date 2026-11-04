@@ -147,7 +147,7 @@
     <string name="notes_username">Benutzername für die Notizen</string>
     <string name="notes_password">Passwort für die Notizen</string>
     <string name="same_as_library">wie die Bibliothek</string>
-    <string name="highlights_hint">Markierungen: Halten Sie in einem Buch aus der Bibliothek ein Wort gedrückt und streichen Sie über die Stelle, um sie zu markieren, auf Wunsch mit Kommentar; ein Tippen auf eine Markierung zeigt ihren Kommentar. Sie liegen neben dem Buch auf dem Drive, mit der Seite, auf der Sie sind, und folgen ihm auf Ihre anderen Geräte. Das Menü des Buchs exportiert sie. Mit der unten angegebenen WebDAV-Adresse des Ordners von Reader\'s Notes führt eine Notiz pro Buch seine Markierungen in Reader\'s Notes auf.</string>
+    <string name="highlights_hint">Markierungen: Halten Sie in einem beliebigen Buch ein Wort gedrückt und streichen Sie über die Stelle, um sie zu markieren, auf Wunsch mit Kommentar; ein Tippen auf eine Markierung zeigt ihren Kommentar. In einem Buch aus der Bibliothek liegen sie neben dem Buch auf dem Drive, mit der Seite, auf der Sie sind, und folgen ihm auf Ihre anderen Geräte; in einem Buch, das von diesem Telefon geöffnet wurde, bleiben sie auf diesem Telefon und gehen mit dem Buch in die Bibliothek, wenn es ihr hinzugefügt wird. Das Menü des Buchs exportiert sie. Mit der unten angegebenen WebDAV-Adresse des Ordners von Reader\'s Notes führt eine Notiz pro Buch seine Markierungen in Reader\'s Notes auf.</string>
     <!-- books kept on the phone; the shelf cleared of those of the library not opened for a while -->
     <string name="keep_on_phone">auf dem Telefon behalten</string>
     <string name="keep_on_phone_hint">jetzt heruntergeladen, zum Lesen ohne Verbindung; bleibt im Regal</string>
@@ -170,4 +170,9 @@
         <item quantity="one">%d auf dem Telefon behalten</item>
         <item quantity="other">%d auf dem Telefon behalten</item>
     </plurals>
+    <!-- the home screen: the library with the book read last and the shelf; the shelf alone invites to set one up -->
+    <string name="on_this_phone">auf diesem Telefon</string>
+    <string name="continue_reading">weiterlesen</string>
+    <string name="setup_library">eine Bibliothek einrichten</string>
+    <string name="setup_library_hint">Ihre Bücher auf Ihrem Drive, auf all Ihren Geräten</string>
 </resources>

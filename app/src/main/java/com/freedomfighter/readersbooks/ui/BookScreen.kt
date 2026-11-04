@@ -146,7 +146,7 @@ fun BookScreen(nav: Nav, app: App, id: String) {
                     })
                 },
                 footer = listOf(
-                    MenuItem(stringResource(R.string.shelf)) { nav.pop() },
+                    MenuItem(backLabel(nav)) { nav.pop() },
                     MenuItem(themeName(Palettes.next(settings.theme))) { app.prefs.nextTheme() }
                 ),
                 onDismiss = { menu = false }
@@ -409,14 +409,13 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         val safePage = page.coerceIn(0, layout.pageCount - 1)
         val pageDef = layout.pages[safePage]
 
-        // Highlights and comments, for the books of the library.
-        val selectable = app.highlights.fromLibrary(entry)
+        // Highlights and comments, in every book.
         val current by app.highlights.current.collectAsState()
         val highlightKey = remember(entry.id, entry.source) { app.highlights.key(entry) }
         // The place the book had before this opening marked it as read just now: what this
         // phone has to say to the drive, and what a place read later elsewhere is compared with.
         val leftAt = remember(entry.fileName) { if (entry.opened > 0L) Position(entry.chapter, entry.charOffset, entry.progress, entry.opened) else null }
-        LaunchedEffect(entry.fileName, entry.source) { if (selectable) app.highlights.open(entry, leftAt) }
+        LaunchedEffect(entry.fileName, entry.source) { app.highlights.open(entry, leftAt) }
         // Read later on another device: the book opens there, unless a page was already turned here.
         val arrived by app.highlights.arrived.collectAsState()
         LaunchedEffect(arrived) {
@@ -426,9 +425,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             }
         }
         // The place goes to the drive once the reading pauses, and on leaving the book.
-        LaunchedEffect(lastTurn, turns) { if (selectable && turns > 0) { kotlinx.coroutines.delay(30_000L); app.highlights.place(entry.id) } }
-        androidx.compose.runtime.DisposableEffect(entry.fileName) { onDispose { if (selectable) app.highlights.place(entry.id) } }
-        val all = if (selectable && current?.first == highlightKey) current!!.second else emptyList()
+        LaunchedEffect(lastTurn, turns) { if (turns > 0) { kotlinx.coroutines.delay(30_000L); app.highlights.place(entry.id) } }
+        androidx.compose.runtime.DisposableEffect(entry.fileName) { onDispose { app.highlights.place(entry.id) } }
+        val all = if (current?.first == highlightKey) current!!.second else emptyList()
         val shown = remember(all, b) { Highlights.anchor(all, b) }
         val chapterText = remember(ch) { Highlights.chapterText(ch) }
         var selecting by remember { mutableStateOf<Pair<Int, Int>?>(null) }     // where the finger went down, where it is
@@ -502,7 +501,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { outerPos = it.positionInRoot() }
-                .pointerInput(layout, chapter, safePage, shown, selectable) {
+                .pointerInput(layout, chapter, safePage, shown) {
                     // As on a reading tablet: a tap on the left third goes back, on the right third
                     // forward, in the middle it opens the book's menu — or, on a picture, the picture
                     // on the whole screen. A tap on a highlight opens it, except in a page-turn zone
@@ -536,7 +535,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                             return@awaitEachGesture
                         }
                         tick()
-                        val from = if (selectable) placeAt(down.position) else null
+                        val from = placeAt(down.position)
                         if (from == null) { onMenu(); return@awaitEachGesture }
                         selecting = from to from
                         while (true) {

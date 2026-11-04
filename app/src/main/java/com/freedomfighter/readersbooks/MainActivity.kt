@@ -28,21 +28,25 @@ import com.freedomfighter.readersbooks.ui.ReaderTheme
 import com.freedomfighter.readersbooks.ui.Screen
 import com.freedomfighter.readersbooks.ui.SettingsScreen
 import com.freedomfighter.readersbooks.ui.ShelfScreen
+import com.freedomfighter.readersbooks.ui.homeFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
-    private val nav = Nav()
+    private lateinit var nav: Nav
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val app = application as App
+        nav = Nav(homeFor(app.prefs.settings.value))
         handle(intent)
         setContent {
             val settings by app.prefs.settings.collectAsState()
+            // a drive set up makes the library the home screen; forgotten, the shelf is again
+            LaunchedEffect(settings.libraryConfigured) { nav.rehome(homeFor(settings)) }
             ReaderTheme(settings) {
                 Bars()
                 when (val s = nav.current) {

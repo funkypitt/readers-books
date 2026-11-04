@@ -14,7 +14,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
 import okhttp3.Credentials
 import java.io.File
 import java.net.URLDecoder
@@ -22,15 +21,15 @@ import java.security.MessageDigest
 import java.util.Locale
 
 /**
- * The highlights of the books of the library: kept on the phone, folded with the file that lies
- * next to the book on the drive ("<book file>.highlights.json"), with the place the book was
- * left at, and written as a
- * note per book into the "Reader's Books" folder of the Reader's Notes folder when one is named.
+ * The highlights of every book: kept on the phone in a file of the same form as the one that
+ * lies next to a book of the library on the drive ("<book file>.highlights.json"). For a book of
+ * the library they are folded with that file, with the place the book was left at; for a book of
+ * the shelf alone they stay on the phone, and its place too. Either way a note per book goes into
+ * the "Reader's Books" folder of the Reader's Notes folder when one is named.
  * All of it in the background; what could not be sent is sent the next time.
  */
 class HighlightSync(private val app: App) {
-    private val dir = File(app.filesDir, "highlights").apply { mkdirs() }
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = true }
+    private val store = HighlightStore(File(app.filesDir, "highlights"))
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = HashSet<String>()
     private val again = HashSet<String>()
@@ -42,12 +41,10 @@ class HighlightSync(private val app: App) {
     fun key(entry: Entry): String =
         MessageDigest.getInstance("SHA-1").digest((entry.source ?: entry.id).toByteArray()).joinToString("") { "%02x".format(it) }
 
-    private fun load(key: String): HighlightFile =
-        runCatching { json.decodeFromString(HighlightFile.serializer(), File(dir, "$key.json").readText()) }.getOrDefault(HighlightFile())
+    private fun load(key: String): HighlightFile = store.load(key)
 
-    private fun save(key: String, highlights: List<Highlight>, dirty: Boolean) {
-        runCatching { File(dir, "$key.json").writeText(json.encodeToString(HighlightFile.serializer(), HighlightFile(highlights = highlights, dirty = dirty))) }
-    }
+    /** `dirty` = not yet where it goes: the drive's file for a book of the library, the note for a book of the shelf. */
+    private fun save(key: String, highlights: List<Highlight>, dirty: Boolean, book: String = "") = store.save(key, highlights, dirty, book)
 
     /** A place read later on another device, for the page that is just being opened: the book's key and the place. */
     private val _arrived = MutableStateFlow<Pair<String, Position>?>(null)
@@ -58,8 +55,8 @@ class HighlightSync(private val app: App) {
         if (entry.opened > 0L) Position(entry.chapter, entry.charOffset, entry.progress, entry.opened) else null
 
     /**
-     * A book from the library was opened: what is known of its highlights, then what the drive
-     * says. `leftAt` is the place the book had before this opening marked it as read just now.
+     * A book was opened: what is known of its highlights, then, for a book of the library, what
+     * the drive says. `leftAt` is the place the book had before this opening marked it as read just now.
      */
     fun open(entry: Entry, leftAt: Position?) {
         val k = key(entry)
@@ -70,9 +67,26 @@ class HighlightSync(private val app: App) {
 
     fun change(entry: Entry, highlights: List<Highlight>) {
         val k = key(entry)
-        save(k, highlights, true)
+        save(k, highlights, true, bookName(entry))
         _current.value = k to highlights
         sync(entry)
+    }
+
+    /**
+     * The same book goes on under another entry or another address (see [Library.onMoved]): its
+     * highlights go with it, folded into what the new one already has — by the same rule as with
+     * the drive — and sent at once. Its note, when the book's name changes with it, goes from
+     * under the old name.
+     */
+    fun adopt(from: Entry, to: Entry) {
+        val a = key(from); val b = key(to)
+        val mine = load(a).highlights
+        val merged = store.move(a, b, bookName(to)) ?: return
+        if (_current.value?.first == a) _current.value = b to merged
+        val oldName = bookName(from)
+        if (Highlights.noteFileName(oldName) != Highlights.noteFileName(bookName(to)) && Highlights.live(mine).isNotEmpty())
+            notes(app.prefs.settings.value)?.let { n -> scope.launch { runCatching { Sidecar.writeNote(n.folder, n.auth, oldName, emptyList(), Locale.getDefault().language) } } }
+        sync(to)
     }
 
     /** Where the book stands now, for the other devices: after a pause in the reading, and on leaving it. */
@@ -93,7 +107,7 @@ class HighlightSync(private val app: App) {
     /** A book that left the shelf: its highlights go too, unless some were never sent (they will be, when the book is back). */
     fun forget(entry: Entry) {
         val k = key(entry)
-        if (!entry.fromLibrary || !load(k).dirty) File(dir, "$k.json").delete()
+        if (!entry.fromLibrary || !load(k).dirty) store.delete(k)
     }
 
     /** The name of the book's file on the drive: kept when it was fetched, else read from its address, else from the list of the drive's books. */
@@ -109,15 +123,12 @@ class HighlightSync(private val app: App) {
 
     private class Place(val address: String, val auth: String)
 
-    /** A book fetched from the drive: the one kind that has highlights, and a place that travels. */
-    fun fromLibrary(entry: Entry): Boolean = entry.fromLibrary
-
     /**
      * Where the highlights of a book and the place it was left at are kept for every device: in
      * a file next to the book. Null for a book that did not come from the library.
      */
     private fun sidecar(s: Settings, entry: Entry): Place? {
-        if (!fromLibrary(entry) || !s.libraryConfigured) return null
+        if (!entry.fromLibrary || !s.libraryConfigured) return null
         return Place(entry.source + Highlights.SUFFIX, Credentials.basic(s.username.trim(), s.password, Charsets.UTF_8))
     }
 
@@ -135,7 +146,7 @@ class HighlightSync(private val app: App) {
     private fun sync(entry: Entry, position: Position? = null, opening: Boolean = false) {
         val k = key(entry)
         val s = app.prefs.settings.value
-        if (sidecar(s, entry) == null) return
+        if (sidecar(s, entry) == null && !noteOnly(s, entry, k)) return
         synchronized(running) {
             if (!running.add(k)) { again += k; return }
         }
@@ -161,11 +172,24 @@ class HighlightSync(private val app: App) {
         return ok && !rerun && !load(k).dirty
     }
 
-    /** One exchange with the drive, for the book's highlights and place; true when it went through. */
+    /** A book of the shelf alone, whose highlights changed since its note was last written. */
+    private fun noteOnly(s: Settings, entry: Entry, k: String): Boolean = !entry.fromLibrary && notes(s) != null && load(k).dirty
+
+    /**
+     * One exchange with the drive, for the book's highlights and place — or, for a book of the
+     * shelf alone, the writing of its note; true when it went through.
+     */
     private suspend fun exchange(k: String, entry: Entry, s: Settings, position: Position?, opening: Boolean): Boolean {
         val before = load(k)
         return runCatching {
-            val place = sidecar(s, entry) ?: return@runCatching
+            val place = sidecar(s, entry)
+            if (place == null) {
+                if (!noteOnly(s, entry, k)) return@runCatching
+                val n = notes(s) ?: return@runCatching
+                Sidecar.writeNote(n.folder, n.auth, bookName(entry), before.highlights, Locale.getDefault().language)
+                if (load(k).highlights == before.highlights) save(k, before.highlights, false, bookName(entry))
+                return@runCatching
+            }
             val r = Sidecar.sync(place.address, place.auth, bookName(entry), before.highlights, position ?: positionOf(entry))
             // The note is written again whenever the drive's highlights were: two devices that
             // met there at the same moment leave a note that lacks what one of them had.
@@ -173,7 +197,7 @@ class HighlightSync(private val app: App) {
                 Sidecar.writeNote(n.folder, n.auth, bookName(entry), r.merged, Locale.getDefault().language)
             }
             if (load(k).highlights == before.highlights) {      // nothing was changed here meanwhile
-                if (before.dirty || r.merged != before.highlights) save(k, r.merged, false)
+                if (before.dirty || r.merged != before.highlights) save(k, r.merged, false, bookName(entry))
                 val reading = _current.value?.first == k
                 if (r.merged != before.highlights && reading) _current.value = k to r.merged
                 r.theirs?.let { there ->

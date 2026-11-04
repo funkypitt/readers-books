@@ -18,6 +18,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate(); prefs; library; CredentialsShare.cleanUp(this)
         library.onRemoved = { highlights.forget(it) }
+        library.onMoved = { from, to -> highlights.adopt(from, to) }
         highlights.shelf()
     }
 }

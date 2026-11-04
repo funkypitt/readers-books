@@ -65,16 +65,45 @@ sealed class Screen {
     data class SendToLibrary(val id: String) : Screen()
 }
 
-class Nav {
-    val stack = mutableStateListOf<Screen>(Screen.Shelf)
+/**
+ * The screens, one on top of the other. The first one is the home screen: the library when a
+ * drive is set up (the shelf is then a row of it), the shelf otherwise — see [homeFor].
+ */
+class Nav(home: Screen = Screen.Shelf) {
+    val stack = mutableStateListOf(home)
     val current: Screen get() = stack.last()
+    /** The screen a back would lead to, null on the home screen. */
+    val below: Screen? get() = stack.getOrNull(stack.size - 2)
+    val atHome: Boolean get() = stack.size == 1
     fun push(s: Screen) { stack.add(s) }
     fun pop() { if (stack.size > 1) stack.removeAt(stack.size - 1) }
     fun home() { while (stack.size > 1) stack.removeAt(stack.size - 1) }
+    /**
+     * The home screen changes (a drive set up, or forgotten): the screens above it stay, the same
+     * screen just above it is folded into it.
+     */
+    fun rehome(home: Screen) {
+        if (stack[0] == home) return
+        stack[0] = home
+        while (stack.size > 1 && stack[1] == home) stack.removeAt(1)
+    }
+    /** To the library: back down to it when it is the home screen, else on top. */
+    fun toLibrary() { if (stack[0] == Screen.Library) home() else push(Screen.Library) }
     var version by mutableIntStateOf(0)
     var importing by mutableStateOf(false)
     var importFailed by mutableStateOf(false)
 }
+
+/** What a back leads to, named as the screen below calls itself: for the « back » items of the menus. */
+@Composable
+fun backLabel(nav: Nav): String = stringResource(when {
+    nav.below == Screen.Library || nav.below is Screen.Folder || nav.below == Screen.AllBooks || nav.below == Screen.Search -> R.string.library
+    nav.below == Screen.Shelf && nav.stack[0] != Screen.Shelf -> R.string.on_this_phone
+    else -> R.string.shelf
+})
+
+/** The home screen: the library when one is set up, else the shelf. */
+fun homeFor(s: com.freedomfighter.readersbooks.data.Settings): Screen = if (s.libraryConfigured) Screen.Library else Screen.Shelf
 
 fun Context.findActivity(): Activity? {
     var c: Context = this
@@ -128,9 +157,11 @@ fun ShelfScreen(nav: Nav, app: App) {
         }
     }
     fun pick() = runCatching { picker.launch(BOOK_MIME) }
+    // the home screen when no library is set up; else a page of the library, back leads to it
+    BackHandler(enabled = !nav.atHome) { nav.pop() }
     Page {
         Column(Modifier.fillMaxSize()) {
-            ScreenTitle(stringResource(R.string.shelf), onBack = null, trailing = "⋯", onTrailing = { menu = true })
+            ScreenTitle(stringResource(if (nav.atHome) R.string.shelf else R.string.on_this_phone), onBack = if (nav.atHome) null else ({ nav.pop() }), trailing = "⋯", onTrailing = { menu = true })
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
                 if (nav.importing) item { Small("…", Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 else if (nav.importFailed) item { Small(stringResource(R.string.reader_unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
@@ -147,10 +178,11 @@ fun ShelfScreen(nav: Nav, app: App) {
             }
             Rule()
             TextRow(stringResource(R.string.open_book), size = typo.title) { pick() }
-            if (settings.libraryConfigured) TextRow(stringResource(R.string.library), size = typo.title) { nav.push(Screen.Library) }
+            // no library yet: one quiet line says what it would bring, and leads to setting it up
+            if (!settings.libraryConfigured) TextRow(stringResource(R.string.setup_library), secondary = stringResource(R.string.setup_library_hint), size = typo.title * 0.85f) { nav.push(Screen.Library) }
             Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
-        if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }, MenuItem(stringResource(R.string.library)) { nav.push(Screen.Library) },
+        if (menu) TextMenu(null, listOf(MenuItem(stringResource(R.string.open_book)) { pick() }, MenuItem(stringResource(R.string.library)) { nav.toLibrary() },
             MenuItem(stringResource(R.string.order), secondary = orderLabel) { orderMenu = true }), onDismiss = { menu = false }, footer = listOf(
             MenuItem(themeName(Palettes.next(settings.theme))) { app.prefs.nextTheme() },
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
