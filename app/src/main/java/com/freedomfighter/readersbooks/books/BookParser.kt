@@ -94,6 +94,21 @@ object BookParser {
                 }
             }
 
+            // The publisher's style sheets, each read once; the rules a page links to, in its order.
+            val sheets = HashMap<String, List<Css.Rule>>()
+            fun styleSheets(html: String, chapterDir: String): List<Css.Rule> {
+                val out = ArrayList<Css.Rule>()
+                for (m in linkTag.findAll(html)) {
+                    val tag = m.value
+                    if (!(attr(tag, "rel") ?: "").contains("stylesheet", true) && !(attr(tag, "type") ?: "").contains("css", true)) continue
+                    val href = attr(tag, "href") ?: continue
+                    val p = resolve(chapterDir, href)
+                    val rules = sheets.getOrPut(p) { read(p)?.let { Css.parse(it) } ?: emptyList() }
+                    for (r in rules) out += Css.Rule(r.selector, r.decls, out.size)
+                }
+                return out
+            }
+
             val chapters = ArrayList<Book.Chapter>()
             val chapterByPath = HashMap<String, Int>()
             val htmlByChapter = ArrayList<String>()
@@ -103,7 +118,7 @@ object BookParser {
                 val path = resolve(dir, href)
                 val html = read(path) ?: return@forEachIndexed
                 val chapterDir = path.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
-                val blocks = HtmlText.toBlocks(html) { src ->
+                val blocks = HtmlText.toBlocks(html, styleSheets(html, chapterDir)) { src ->
                     val p = resolve(chapterDir, src)
                     if (zip.getEntry(p) != null) p else null
                 }
@@ -162,6 +177,8 @@ object BookParser {
         }
         return if (chapters.isNotEmpty() && structured * 2 >= chapters.size) Magazine(articles) else null
     }
+
+    private val linkTag = Regex("<link\\b[^>]*>", RegexOption.IGNORE_CASE)
 
     private fun attr(tag: String, name: String): String? =
         Regex("\\b$name\\s*=\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE).find(tag)?.groupValues?.get(1)
@@ -285,7 +302,7 @@ object BookParser {
             .joinToString("\n") { it.value }.ifEmpty { noBinary }
         val sections = body.split(Regex("<section\\b[^>]*>", RegexOption.IGNORE_CASE))
         val chapters = sections.mapIndexedNotNull { i, s ->
-            val blocks = HtmlText.toBlocks(s) { null }
+            val blocks = HtmlText.toBlocks(s, fb2 = true) { null }
             if (blocks.isEmpty()) null
             else {
                 val t = Regex("<title>(.*?)</title>", RegexOption.DOT_MATCHES_ALL).find(s)?.groupValues?.get(1)?.let { HtmlText.strip(it).trim() }
@@ -375,18 +392,46 @@ object HtmlText {
     private val blankLine = Regex("\n\\s*\n")
     private val kindMark = Regex("$MARK[HLS]")
 
+    // The book's presentation: every tag left after the steps above is followed by a mark and
+    // its number (two characters of the private use area), and every picture is preceded by one;
+    // the marks go out with italic and bold, before the text is touched, so that the text is the
+    // same character for character, and each character knows the element it was in.
+    private const val TAG_MARK = '\u0007'
+    private const val PICTURE_MARK = '\u0008'
+    private const val PUA = 0xE000
+    private const val PUA_SIZE = 6400
+    private val styleBlock = Regex("<style\\b[^>]*>(.*?)</style>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private fun number(k: Int): String = "${(PUA + k / PUA_SIZE).toChar()}${(PUA + k % PUA_SIZE).toChar()}"
+
+    /** The rules of the `<style>` blocks of a page. */
+    fun pageRules(html: String, firstOrder: Int): List<Css.Rule> {
+        val out = ArrayList<Css.Rule>()
+        for (m in styleBlock.findAll(html)) out += Css.parse(m.groupValues[1].replace("<!--", " ").replace("-->", " "), firstOrder + out.size)
+        return out
+    }
+
     /**
      * Paragraphs with their kind, and the images between them. `image` maps an `src` to the
      * source the reader can load, or null to drop it. Markers are single control characters
      * placed before tags are stripped, so the split into paragraphs stays the same as before.
-     * Words in italic or bold keep it as runs beside the text ([Para.styles]): the text itself
-     * is exactly what it is without them, so a place in it is the same with or without.
+     * Words in italic or bold keep it as runs beside the text ([Para.styles]), and each paragraph
+     * how the book sets it ([Para.look], from `rules`, the page's own style blocks and the
+     * style attributes): the text itself is exactly what it is without them, so a place in it is
+     * the same with or without. `fb2` sets FictionBook's own elements (poems, epigraphs…).
      */
-    fun toBlocks(html: String, image: (String) -> String?): List<Block> {
+    fun toBlocks(html: String, rules: List<Css.Rule> = emptyList(), fb2: Boolean = false, image: (String) -> String?): List<Block> {
+        // a page that carries these characters itself is read as it is, without presentation
+        val styled = html.none { it == TAG_MARK || it == PICTURE_MARK }
+        val tree = if (styled) Tree(Css.Sheet(rules + pageRules(html, rules.size)), fb2) else null
+        val pictures = ArrayList<String>()
         var s = html
         s = comments.replace(s, "")
         s = svgImage.replace(s) { m -> "<img src=\"${m.groupValues[1]}\"/>" }
-        s = img.replace(s) { m -> image(m.groupValues[1])?.let { "\n\n$IMG$it\n\n" } ?: " " }
+        s = img.replace(s) { m ->
+            image(m.groupValues[1])?.let {
+                if (styled) { pictures += m.value; "\n\n" + PICTURE_MARK + number(pictures.size - 1) + IMG + it + "\n\n" } else "\n\n$IMG$it\n\n"
+            } ?: " "
+        }
         s = dropBlocks.replace(s, " ")
         s = headingOpen.replace(s) { m -> m.value + MARK + "H" }
         s = classed.replace(s) { m ->
@@ -404,6 +449,8 @@ object HtmlText {
             if (m.groupValues[3].trimEnd().endsWith("/")) "" // <b/>: nothing to set
             else if (m.groupValues[1].isEmpty()) (if (italic) ITALIC_ON else BOLD_ON).toString() else (if (italic) ITALIC_OFF else BOLD_OFF).toString()
         }
+        val tags = ArrayList<String>()
+        if (styled) s = anyTag.replace(s) { m -> tags += m.value; m.value + TAG_MARK + number(tags.size - 1) }
         s = lineBreak.replace(s, "\n")
         s = paragraphBreak.replace(s, "\n\n")
         s = anyTag.replace(s, "")
@@ -411,8 +458,28 @@ object HtmlText {
         // the marks out: what is left is the text without them, and what each character is set in
         val plain = StringBuilder(s.length)
         val setIn = ByteArray(s.length)
+        val nodeAt = if (styled) IntArray(s.length) else null
+        val hardAt = HashSet<Int>()          // line breaks of the page (<br>), not of its source
+        val rulesAt = ArrayList<Int>()       // <hr>, before the character at
+        val gapsAt = ArrayList<Int>()        // FictionBook's <empty-line/>
+        val pictureNode = HashMap<Int, Int>()
         var italic = 0; var bold = 0
-        for (c in s) {
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (tree != null && (c == TAG_MARK || c == PICTURE_MARK) && i + 2 < s.length) {
+                val k = (s[i + 1].code - PUA) * PUA_SIZE + (s[i + 2].code - PUA)
+                if (c == TAG_MARK) tags.getOrNull(k)?.let { raw ->
+                    when (tree.tag(raw)) {
+                        "br" -> if (plain.isNotEmpty() && plain[plain.length - 1] == '\n') hardAt += plain.length - 1
+                        "hr" -> rulesAt += plain.length
+                        "empty-line" -> gapsAt += plain.length
+                    }
+                } else pictures.getOrNull(k)?.let { raw -> pictureNode[plain.length] = tree.leaf("img", tree.attributes(raw)) }
+                i += 3
+                continue
+            }
+            i++
             if (marked) when (c) {
                 ITALIC_ON -> { italic++; continue }
                 ITALIC_OFF -> { if (italic > 0) italic--; continue }
@@ -420,10 +487,12 @@ object HtmlText {
                 BOLD_OFF -> { if (bold > 0) bold--; continue }
             }
             setIn[plain.length] = ((if (italic > 0) Para.ITALIC else 0) or (if (bold > 0) Para.BOLD else 0)).toByte()
+            if (nodeAt != null) nodeAt[plain.length] = tree!!.current
             plain.append(c)
         }
         // From here on every step is the plain text's, each character remembering where it came from.
         val text = Traced.collapse(plain, spaces)
+        val look = if (tree != null && nodeAt != null) Presenter(tree, nodeAt, setIn, hardAt, rulesAt, gapsAt) else null
         val blocks = ArrayList<Block>()
         var paras = ArrayList<Para>()
         var from = 0
@@ -431,11 +500,11 @@ object HtmlText {
         for (m in blankLine.findAll(text.chars)) { raws += text.slice(from, m.range.first); from = m.range.last + 1 }
         raws += text.slice(from, text.chars.length)
         for (raw in raws) {
-            val para = raw.lines()
+            val para = raw.lines(look?.let { l -> { at: Int -> l.hard(at) } })
             if (para.chars.isEmpty()) continue
             if (para.chars.startsWith(IMG)) {
                 if (paras.isNotEmpty()) { blocks += Block.Text(paras); paras = ArrayList() }
-                blocks += Block.Image(para.chars.substring(1).substringBefore('\n').trim())
+                blocks += Block.Image(para.chars.substring(1).substringBefore('\n').trim(), look?.picture(pictureNode[para.at[0]], para.at[0]))
                 continue
             }
             var kind = ParaKind.NORMAL
@@ -445,12 +514,166 @@ object HtmlText {
                 t = t.slice(2, t.chars.length).trimStart()
             }
             t = t.without(kindMark)
-            if (t.chars == "---" || t.chars == "♦") continue // the pipeline's separators
-            if (t.chars.isNotEmpty()) paras += Para(t.chars, kind, t.styles(setIn))
+            if (t.chars == "---" || t.chars == "♦") { if (t.chars == "---") look?.ruleNext(); continue } // the pipeline's separators
+            if (t.chars.isEmpty()) continue
+            if (look == null) paras += Para(t.chars, kind, t.styles { setIn[it].toInt() })
+            else look.paragraph(t, kind).let { (styles, l) -> paras += Para(t.chars, kind, styles, l) }
         }
         if (paras.isNotEmpty()) blocks += Block.Text(paras)
         return blocks
     }
+
+    /**
+     * Makes the [Look] of each paragraph and picture of a page, in their order: what each one
+     * opens and closes of the page's elements gives the space before it, its page break, the
+     * marker of a list item.
+     */
+    private class Presenter(
+        val tree: Tree, val nodeAt: IntArray, val setIn: ByteArray,
+        val hardAt: Set<Int>, val rulesAt: List<Int>, val gapsAt: List<Int>
+    ) {
+        private var before: Set<Int> = emptySet()
+        private var lastAt = -1
+        private var pendingRule = false
+        private var bodySeen = false
+
+        /** A line break that stays one: a <br>, or one of a block that keeps its lines (pre). */
+        fun hard(at: Int): Boolean = at in hardAt || tree.style(nodeAt[at]).pre
+
+        fun ruleNext() { pendingRule = true }
+
+        private class Opening(val above: Float, val pageBreak: Boolean, val rule: Boolean, val opened: Set<Int>)
+
+        private fun opening(node: Int, at: Int): Opening {
+            val chain = tree.chain(node).toHashSet()
+            val opened = chain - before
+            val closed = before - chain
+            var above = 0f
+            var pageBreak = false
+            for (n in opened) {
+                val st = tree.style(n)
+                if (st.breakBefore) pageBreak = true
+                if (tree.isBlock(n) && tree.nodes[n].tag !in Tree.PAGE) above = maxOf(above, st.mt + st.pt)
+            }
+            for (n in closed) {
+                val st = tree.style(n)
+                if (st.breakAfter) pageBreak = true
+                if (tree.isBlock(n) && tree.nodes[n].tag !in Tree.PAGE) above = maxOf(above, st.mb + st.pb)
+            }
+            if (gapsAt.any { it in (lastAt + 1)..at }) above = maxOf(above, 1f)
+            val rule = pendingRule || rulesAt.any { it in (lastAt + 1)..at }
+            pendingRule = false
+            before = chain
+            lastAt = at
+            return Opening(above.coerceIn(0f, MAX_ABOVE), pageBreak, rule, opened)
+        }
+
+        /** Left and right margins: those of the blocks the paragraph is in. */
+        private fun margins(block: Int): Pair<Float, Float> {
+            var left = 0f; var right = 0f
+            var n = block
+            while (n > 0) {
+                val node = tree.nodes[n]
+                if (tree.isBlock(n) && node.tag !in Tree.NO_MARGIN) {
+                    val st = tree.style(n)
+                    left += (st.ml + st.pl).coerceIn(0f, MAX_SIDE)
+                    right += (st.mr + st.pr).coerceIn(0f, MAX_SIDE)
+                }
+                n = node.parent
+            }
+            return left.coerceAtMost(MAX_LEFT) to right.coerceAtMost(MAX_RIGHT)
+        }
+
+        fun picture(node: Int?, at: Int): Look? {
+            node ?: return null
+            val o = opening(node, at)
+            val st = tree.style(node)
+            val attrs = tree.nodes[node].attrs
+            val w = attrs["width"]?.trim()
+            val width = if (!st.width.isNaN()) st.width else w?.takeIf { it.endsWith("%") }?.dropLast(1)?.toFloatOrNull()?.let { (it / 100f).coerceIn(0.05f, 1f) } ?: Float.NaN
+            val pixels = w?.takeIf { !it.endsWith("%") }?.removeSuffix("px")?.toFloatOrNull()?.toInt() ?: 0
+            val align = tree.style(tree.blockOf(tree.nodes[node].parent)).align
+            return Look(align = align, above = o.above, pageBreak = o.pageBreak, rule = o.rule, width = width, pixels = pixels.coerceAtLeast(0))
+        }
+
+        fun paragraph(t: Traced, kind: ParaKind): Pair<IntArray?, Look> {
+            val first = t.at[0]
+            val node = nodeAt[first]
+            val o = opening(node, first)
+            val block = tree.blockOf(node)
+            val bs = tree.style(block)
+            val (left, right) = margins(block)
+            var marker = 0; var number = 0; var level = 0
+            var n = block
+            while (n > 0) {
+                val tag = tree.nodes[n].tag
+                if (tag == "li" && marker == 0 && n in o.opened) { marker = tree.style(n).listType.coerceAtLeast(0); number = tree.nodes[n].ordinal }
+                if (level == 0 && tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6') level = tag[1] - '0'
+                n = tree.nodes[n].parent
+            }
+            val size = (if (kind == ParaKind.SMALL && !bs.sizeSet) 0.8f else bs.size).coerceIn(MIN_SIZE, MAX_SIZE)
+            val blockFlags = bs.flags or (if (kind == ParaKind.LEAD && !bs.weightSet) Para.BOLD else 0)
+            val soft = t.chars.indices.filter { t.chars[it] == '\n' && t.at[it] == -1 }.takeIf { it.isNotEmpty() }?.toIntArray()
+            val styles = t.styles { at ->
+                val st = tree.style(nodeAt[at])
+                val f = (setIn[at].toInt() or st.flags) and blockFlags.inv()
+                val ratio = st.size.coerceIn(MIN_SIZE, MAX_SIZE) / size
+                if (f and (Para.SUPER or Para.SUB) == 0 && (ratio < 0.97f || ratio > 1.03f)) f or (Math.round(ratio * 100f) shl Para.SIZE_SHIFT) else f
+            }
+            val look = Look(
+                align = bs.align, indent = bs.indent.let { if (it.isNaN()) it else it.coerceIn(-MAX_INDENT, MAX_INDENT) },
+                left = left, right = right, above = o.above, pageBreak = o.pageBreak, rule = o.rule,
+                size = size, flags = blockFlags, level = level, marker = marker, number = number,
+                dropCap = dropCap(t, node, block, bs), soft = soft, cells = cells(t, node), table = maxOf(0, tree.tableOf(node))
+            )
+            return styles to look
+        }
+
+        private fun dropCap(t: Traced, node: Int, block: Int, bs: Style): Int {
+            var big = -1
+            var p = node
+            while (p > 0 && p != block) { if (tree.isDropCap(p, block)) big = p; p = tree.nodes[p].parent }
+            if (big > 0) {
+                var k = 0
+                while (k < t.chars.length && t.at[k] >= 0 && tree.within(nodeAt[t.at[k]], big)) k++
+                return if (k in 1..3 && k < t.chars.length && t.chars.substring(0, k).none { it.isWhitespace() }) k else 0
+            }
+            if (!bs.firstLetter) return 0
+            var k = 0
+            while (k < 2 && k < t.chars.length && !t.chars[k].isLetterOrDigit() && !t.chars[k].isWhitespace()) k++
+            return if (k < t.chars.length - 1 && t.chars[k].isLetterOrDigit()) k + 1 else 0
+        }
+
+        /** A table's row: where each cell's text is in the paragraph. */
+        private fun cells(t: Traced, node: Int): IntArray? {
+            if (tree.tableOf(node) <= 0) return null
+            val n = t.chars.length
+            val cellAt = IntArray(n) { if (t.at[it] >= 0) tree.cellOf(nodeAt[t.at[it]]) else -2 }
+            for (k in 0 until n) if (cellAt[k] == -2) cellAt[k] = if (k > 0 && k + 1 < n && cellAt[k - 1] >= 0 && cellAt[k - 1] == cellAt[k + 1]) cellAt[k - 1] else -1
+            val out = ArrayList<Int>()
+            var k = 0
+            while (k < n) {
+                val c = cellAt[k]
+                var e = k + 1
+                while (e < n && cellAt[e] == c) e++
+                if (c > 0) {
+                    val row = tree.rowOf(c)
+                    out += k; out += e; out += if (row > 0) tree.nodes[row].ordinal else 0
+                    out += tree.nodes[c].ordinal; out += tree.nodes[c].span; out += if (tree.isHeader(c)) 1 else 0
+                }
+                k = e
+            }
+            return if (out.isEmpty()) null else out.toIntArray()
+        }
+    }
+
+    private const val MIN_SIZE = 0.8f
+    private const val MAX_SIZE = 1.6f
+    private const val MAX_ABOVE = 2.5f
+    private const val MAX_INDENT = 3f
+    private const val MAX_SIDE = 4f
+    private const val MAX_LEFT = 8f
+    private const val MAX_RIGHT = 4f
 
     /**
      * A piece of text with, for each of its characters, its place in the text it was cut from
@@ -469,14 +692,23 @@ object HtmlText {
             return slice(i, j)
         }
 
-        /** Its lines trimmed, the empty ones dropped, joined again by line breaks. */
-        fun lines(): Traced {
+        /**
+         * Its lines trimmed, the empty ones dropped, joined again by line breaks. A line break put
+         * in between is -1, or -2 when `hard` says the one it stands for stays a line break.
+         */
+        fun lines(hard: ((Int) -> Boolean)? = null): Traced {
             val parts = ArrayList<Traced>()
+            val joins = ArrayList<Int>()
+            var gapHard = false
             var from = 0
-            for (i in 0..chars.length) if (i == chars.length || chars[i] == '\n') { slice(from, i).trim().takeIf { it.chars.isNotEmpty() }?.let { parts += it }; from = i + 1 }
+            for (i in 0..chars.length) if (i == chars.length || chars[i] == '\n') {
+                slice(from, i).trim().takeIf { it.chars.isNotEmpty() }?.let { if (parts.isNotEmpty()) joins += if (gapHard) -2 else -1; parts += it; gapHard = false }
+                if (i < chars.length && hard != null && parts.isNotEmpty() && at[i] >= 0 && hard(at[i])) gapHard = true
+                from = i + 1
+            }
             if (parts.size == 1) return parts[0]
             val sb = StringBuilder(); val at = ArrayList<Int>()
-            parts.forEachIndexed { k, p -> if (k > 0) { sb.append('\n'); at += -1 }; sb.append(p.chars); p.at.forEach { at += it } }
+            parts.forEachIndexed { k, p -> if (k > 0) { sb.append('\n'); at += joins[k - 1] }; sb.append(p.chars); p.at.forEach { at += it } }
             return Traced(sb.toString(), at.toIntArray())
         }
 
@@ -489,14 +721,14 @@ object HtmlText {
             return Traced(sb.toString(), keep.toIntArray())
         }
 
-        /** The runs of italic and bold, from what each character of the source was set in. */
-        fun styles(setIn: ByteArray): IntArray? {
+        /** The runs of italic, bold and the rest, from what each character of the source was set in. */
+        fun styles(setIn: (Int) -> Int): IntArray? {
             var runs: ArrayList<Int>? = null
             var i = 0
             while (i < chars.length) {
-                val f = if (at[i] >= 0) setIn[at[i]].toInt() else 0
+                val f = if (at[i] >= 0) setIn(at[i]) else 0
                 var j = i + 1
-                while (j < chars.length && (if (at[j] >= 0) setIn[at[j]].toInt() else f) == f) j++
+                while (j < chars.length && (if (at[j] >= 0) setIn(at[j]) else f) == f) j++
                 if (f != 0) { val r = runs ?: ArrayList<Int>().also { runs = it }; r += i; r += j; r += f }
                 i = j
             }

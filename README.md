@@ -56,6 +56,14 @@ network is used only if you set up a library on your own drive. It extends the b
   agree once the date is taken off.
 * Italic and bold show in every book; the text itself, where highlights are counted, is the same
   as without them.
+* Books and magazines are set the way their publisher set them, from the book's own style
+  sheets: headings in their sizes, centred, right-aligned and justified text, indents and the
+  space between paragraphs, quotations and verse in their margins, lists with bullets and
+  numbers, tables as grids, small capitals, raised notes, rules, pictures at their own size with
+  their captions, large initials, a new page where the book asks for one, the lines of code and
+  verse. The font, size, margins and colours stay the reader's; text written over several lines
+  of the source reads as one paragraph. Nothing of this changes the text, where highlights are
+  counted.
 * A folder of the library can be followed (long press on it): it then sits near the top of the
   library with the number of its new books, counted from the last listing of the drive. Nothing
   is downloaded by itself: a tap lists that folder again, fetches its new books one after the

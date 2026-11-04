@@ -157,163 +157,6 @@ fun BookScreen(nav: Nav, app: App, id: String) {
     }
 }
 
-/**
- * One chapter laid out at the current width/size: pages made of whole text lines and of
- * pictures. Text goes through android.text.StaticLayout, the same engine used by working
- * open-source readers: getLineTop/getLineBottom describe exactly what StaticLayout.draw paints,
- * so a page holds only whole lines and nothing is clipped or repeated. A picture is a box
- * scaled to the text width (never taller than the page) that moves to the next page whole.
- */
-private sealed class Piece(val y: Int, val charBase: Int) {
-    /**
-     * `base` is the place of the block's first character in its chapter, `indents` where, in the
-     * laid-out string, an indent was put in: the indents are not text, and a highlight is counted
-     * in the text.
-     */
-    class Lines(y: Int, charBase: Int, val layout: StaticLayout, val first: Int, val last: Int, val base: Int, val indents: IntArray) : Piece(y, charBase) {
-        val top: Int get() = layout.getLineTop(first)
-        val height: Int get() = layout.getLineBottom(last) - top
-        val startChar: Int get() = charBase + layout.getLineStart(first)
-
-        fun toChapter(laid: Int): Int {
-            var c = laid
-            for (at in indents) { if (at + 2 <= laid) c -= 2 else if (at < laid) c -= laid - at }
-            return base + c
-        }
-
-        fun toLaid(place: Int): Int {
-            var laid = place - base
-            for (at in indents) { if (at <= laid) laid += 2 else break }
-            return laid
-        }
-    }
-    class Picture(y: Int, charBase: Int, val source: String, val width: Int, val height: Int) : Piece(y, charBase)
-}
-
-private class PageDef(val pieces: List<Piece>) {
-    val startChar: Int = pieces.firstOrNull()?.let { if (it is Piece.Lines) it.startChar else it.charBase } ?: 0
-}
-
-private class ChapterLayout(val pages: List<PageDef>) {
-    val pageCount: Int get() = pages.size
-    fun pageStartChar(page: Int): Int = pages[page].startChar
-    fun pageFor(charOffset: Int): Int {
-        var p = 0
-        for (i in pages.indices) if (pages[i].startChar <= charOffset) p = i else break
-        return p
-    }
-}
-
-/**
- * Lines sit 1.7 em apart whatever the face: 1.45 times the line of the system fonts, less for
- * a face that is drawn with tall line boxes of its own (Literata).
- */
-private fun lineSpacing(paint: TextPaint): Float {
-    val natural = paint.fontMetrics.let { it.descent - it.ascent } / paint.textSize
-    return if (natural > 1.3f) 1.7f / natural else 1.45f
-}
-
-private fun buildLayout(text: CharSequence, paint: TextPaint, widthPx: Int, spacingMul: Float): StaticLayout =
-    StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx.coerceAtLeast(1))
-        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-        .setLineSpacing(0f, spacingMul)
-        .setIncludePad(false)
-        .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
-        .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
-        .build()
-
-private fun paginate(ch: Book.Chapter, paint: TextPaint, dimArgb: Int, widthPx: Int, pageHeight: Int, images: ImageStore): ChapterLayout {
-    val pages = ArrayList<PageDef>()
-    var pieces = ArrayList<Piece>()
-    var y = 0
-    var charBase = 0
-    var place = 0 // the same count, for highlights: see Highlights.chapterText
-    val gap = (paint.textSize * 0.8f).toInt()
-    fun newPage() { if (pieces.isNotEmpty()) { pages += PageDef(pieces); pieces = ArrayList() }; y = 0 }
-    for (block in ch.blocks) when (block) {
-        is Block.Text -> {
-            val (text, indents) = blockText(block, dimArgb)
-            val layout = buildLayout(text, paint, widthPx, lineSpacing(paint))
-            if (y > 0) y += gap
-            var line = 0
-            while (line < layout.lineCount) {
-                val top = layout.getLineTop(line)
-                var l = line
-                // A line belongs to the page only if its whole box fits.
-                while (l < layout.lineCount && layout.getLineBottom(l) - top <= pageHeight - y) l++
-                if (l == line) {
-                    if (y > 0) { newPage(); continue } // try again at the top of a fresh page
-                    l++ // a single line taller than the page
-                }
-                pieces += Piece.Lines(y, charBase, layout, line, l - 1, place, indents)
-                y += layout.getLineBottom(l - 1) - top
-                line = l
-                if (line < layout.lineCount) newPage()
-            }
-            charBase += block.length
-            place += block.length
-        }
-        is Block.Image -> {
-            val size = images.size(block.source)
-            if (size != null && size.width >= 48 && size.height >= 48) {
-                var w = widthPx
-                var h = (w.toLong() * size.height / size.width).toInt()
-                if (h > pageHeight) { h = pageHeight; w = (h.toLong() * size.width / size.height).toInt() }
-                if (y > 0) y += gap
-                if (y + h > pageHeight) newPage()
-                pieces += Piece.Picture(y, charBase, block.source, w, h)
-                y += h
-            }
-            charBase += 1
-            place += 1
-        }
-    }
-    newPage()
-    if (pages.isEmpty()) pages += PageDef(emptyList())
-    return ChapterLayout(pages)
-}
-
-/**
- * One single string for a run of paragraphs. Multi-paragraph layouts report line tops and
- * bottoms that do not match what is drawn once a line height is set (paragraph boundaries
- * trim differently), which clipped the last line of a page and repeated it on the next.
- * Indentation is therefore made of em spaces instead of a paragraph style; headings, leads and
- * small print are spans on the same string.
- */
-private fun blockText(block: Block.Text, dimArgb: Int): Pair<CharSequence, IntArray> {
-    val sb = SpannableStringBuilder()
-    val indents = ArrayList<Int>()
-    block.paragraphs.forEachIndexed { i, p ->
-        if (i > 0) sb.append("\n")
-        val start = sb.length
-        val indent = i > 0 && p.kind == ParaKind.NORMAL && block.paragraphs[i - 1].kind == ParaKind.NORMAL
-        if (indent) {
-            var at = start
-            p.text.split('\n').forEach { piece -> indents += at; at += 2 + piece.length + 1 }
-        }
-        if (indent) sb.append("\u2003\u2003")
-        sb.append(if (indent) p.text.replace("\n", "\n\u2003\u2003") else p.text)
-        val end = sb.length
-        // italic and bold: spans on the laid-out string, where every line of an indented
-        // paragraph is two em spaces further on (the indents are not text)
-        p.styles?.let { runs ->
-            val breaks = if (indent) p.text.indices.filter { p.text[it] == '\n' } else emptyList()
-            fun laid(k: Int) = start + (if (indent) 2 + 2 * breaks.count { it < k } else 0) + k
-            for (r in runs.indices step 3) {
-                val style = when (runs[r + 2]) { Para.ITALIC -> Typeface.ITALIC; Para.BOLD -> Typeface.BOLD; else -> Typeface.BOLD_ITALIC }
-                sb.setSpan(StyleSpan(style), laid(runs[r]), laid(runs[r + 1]), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-        }
-        when (p.kind) {
-            ParaKind.HEADING -> { sb.setSpan(RelativeSizeSpan(1.3f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
-            ParaKind.LEAD -> sb.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            ParaKind.SMALL -> { sb.setSpan(RelativeSizeSpan(0.8f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(ForegroundColorSpan(dimArgb), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
-            ParaKind.NORMAL -> Unit
-        }
-    }
-    return sb to indents.toIntArray()
-}
-
 @Composable
 private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () -> Unit) {
     val colors = LocalColors.current
@@ -379,6 +222,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () ->
         val dimArgb = colors.dim.toArgb()
         val images = remember(entry.fileName) { app.library.images(entry) }
         val bitmapPaint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
+        // the book's rules and the borders of its tables, in the theme's own dim ink
+        val rulePaint = remember(dimArgb) { Paint().apply { color = dimArgb } }
+        val gridPaint = remember(dimArgb, density) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = dimArgb; style = Paint.Style.STROKE; strokeWidth = density.density.coerceAtLeast(1f) } }
         val context = LocalContext.current
         val paint = remember(readerSp, settings.bookSerif, settings.font, fgArgb, density) {
             TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
@@ -395,7 +241,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () ->
         }
         val ch = b.chapters[chapter]
         val layout = remember(ch, widthPx, paint, dimArgb, pageHeightPx) {
-            paginate(ch, paint, dimArgb, widthPx, pageHeightPx.toInt(), images)
+            paginate(ch, Frame(paint, dimArgb, widthPx, pageHeightPx.toInt(), density.density, images, magazine != null))
         }
         // Resolve the wanted character into a page whenever the layout (size, width) changes.
         LaunchedEffect(layout, jumps) { page = layout.pageFor(wantedChar).coerceIn(0, layout.pageCount - 1) }
@@ -471,8 +317,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () ->
             val y = pos.y - (canvasPos.y - outerPos.y)
             for (piece in pageDef.pieces) {
                 if (piece !is Piece.Lines || y < piece.y || y >= piece.y + piece.height) continue
+                if (piece.clip >= 0 && (x < piece.x || x >= piece.x + piece.clip)) continue
                 val line = piece.layout.getLineForVertical((y - piece.y).toInt() + piece.top).coerceIn(piece.first, piece.last)
-                return piece.toChapter(piece.layout.getOffsetForHorizontal(line, x.coerceAtLeast(0f)))
+                return piece.toChapter(piece.offsetAt(line, (x - piece.x).coerceAtLeast(0f)))
             }
             return null
         }
@@ -490,8 +337,8 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () ->
                     val first = piece.toChapter(layout.getLineStart(l))
                     val last = piece.toChapter(layout.getLineEnd(l))
                     if (h.end <= first || h.start >= last) continue
-                    val x1 = layout.getPrimaryHorizontal(piece.toLaid(maxOf(h.start, first)))
-                    val x2 = if (h.end < last) layout.getPrimaryHorizontal(piece.toLaid(minOf(h.end, last))) else layout.getLineMax(l) + layout.getLineLeft(l)
+                    val x1 = piece.x + piece.xOf(l, piece.toLaid(maxOf(h.start, first)))
+                    val x2 = piece.x + if (h.end < last) piece.xOf(l, piece.toLaid(minOf(h.end, last))) else layout.getLineRight(l)
                     if (minOf(x1, x2) < right && maxOf(x1, x2) > left) return true
                 }
             }
@@ -502,8 +349,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () ->
             val x = pos.x - (canvasPos.x - outerPos.x)
             val y = pos.y - (canvasPos.y - outerPos.y)
             return pageDef.pieces.filterIsInstance<Piece.Picture>().firstOrNull { p ->
-                val left = (widthPx - p.width) / 2
-                x >= left && x < left + p.width && y >= p.y && y < p.y + p.height
+                x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.height
             }?.source
         }
         fun write(h: Highlight) = app.highlights.change(entry, all.filter { it.id != h.id } + h)
@@ -614,15 +460,20 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () ->
                             // the layout paints every line that intersects the clip, so clipping to
                             // the canvas would show a sliver of the next line under the last one.
                             n.save()
-                            n.clipRect(0f, piece.y.toFloat(), size.width, (piece.y + piece.height).toFloat().coerceAtMost(size.height))
-                            n.translate(0f, (piece.y - piece.top).toFloat())
+                            val right = if (piece.clip >= 0) (piece.x + piece.clip).toFloat() else size.width
+                            n.clipRect(if (piece.clip >= 0) piece.x.toFloat() else 0f, piece.y.toFloat(), right, (piece.y + piece.height).toFloat().coerceAtMost(size.height))
+                            n.translate(piece.x.toFloat(), (piece.y - piece.top).toFloat())
                             piece.layout.draw(n)
                             n.restore()
                         }
                         is Piece.Picture -> {
                             val bmp = bitmaps[piece.source] ?: continue
-                            val left = ((size.width - piece.width) / 2).toInt()
-                            n.drawBitmap(bmp, null, Rect(left, piece.y, left + piece.width, piece.y + piece.height), bitmapPaint)
+                            n.drawBitmap(bmp, null, Rect(piece.x, piece.y, piece.x + piece.width, piece.y + piece.height), bitmapPaint)
+                        }
+                        is Piece.Rule -> n.drawRect(piece.x1.toFloat(), piece.y.toFloat(), piece.x2.toFloat(), piece.y + density.density, rulePaint)
+                        is Piece.Grid -> {
+                            val c = piece.cells
+                            for (k in c.indices step 2) n.drawRect(c[k].toFloat(), piece.y.toFloat(), (c[k] + c[k + 1]).toFloat(), (piece.y + piece.height).toFloat(), gridPaint)
                         }
                     }
                 }
@@ -676,8 +527,8 @@ private fun drawMarks(n: android.graphics.Canvas, piece: Piece.Lines, marks: Lis
         val last = piece.toChapter(layout.getLineEnd(l))
         for (m in marks) {
             if (m.end <= first || m.start >= last) continue
-            val x1 = layout.getPrimaryHorizontal(piece.toLaid(maxOf(m.start, first)))
-            val x2 = if (m.end < last) layout.getPrimaryHorizontal(piece.toLaid(minOf(m.end, last))) else layout.getLineMax(l) + layout.getLineLeft(l)
+            val x1 = piece.x + piece.xOf(l, piece.toLaid(maxOf(m.start, first)))
+            val x2 = piece.x + if (m.end < last) piece.xOf(l, piece.toLaid(minOf(m.end, last))) else layout.getLineRight(l)
             if (x2 <= x1) continue
             val top = (piece.y + layout.getLineTop(l) - piece.top).toFloat()
             val bottom = piece.y + layout.getLineBaseline(l) - piece.top + text.fontMetrics.descent

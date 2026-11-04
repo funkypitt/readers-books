@@ -4,6 +4,8 @@ import com.freedomfighter.readersbooks.books.Block
 import com.freedomfighter.readersbooks.books.Book
 import com.freedomfighter.readersbooks.books.BookFormat
 import com.freedomfighter.readersbooks.books.BookParser
+import com.freedomfighter.readersbooks.books.Css
+import com.freedomfighter.readersbooks.books.Look
 import com.freedomfighter.readersbooks.books.Highlights
 import com.freedomfighter.readersbooks.books.HtmlText
 import com.freedomfighter.readersbooks.books.Para
@@ -46,7 +48,8 @@ class EmphasisTest {
         assertEquals(listOf(Triple("oui ", Para.ITALIC, 9), Triple("non", Para.BOLD, 20), Triple("peut-", Para.ITALIC, 27), Triple("être", Para.ITALIC or Para.BOLD, 32)), runs(paras[0]))
         assertEquals(listOf(Triple("Tout en italique", Para.ITALIC, 0)), runs(paras[1]))
         assertEquals(ParaKind.HEADING, paras[2].kind); assertEquals(listOf(Triple("titre", Para.ITALIC, 3)), runs(paras[2]))
-        assertEquals(ParaKind.LEAD, paras[3].kind); assertEquals(listOf(Triple("chapô", Para.BOLD, 3)), runs(paras[3]))
+        // a lead is in bold as a whole: its bold words have nothing more to set
+        assertEquals(ParaKind.LEAD, paras[3].kind); assertEquals(Para.BOLD, paras[3].look!!.flags and Para.BOLD); assertEquals(emptyList<Triple<String, Int, Int>>(), runs(paras[3]))
     }
 
     @Test
@@ -91,6 +94,75 @@ class EmphasisTest {
         assertEquals("bonjour", b.substring(start, start + 7))
         assertEquals(a.indexOf("part"), b.indexOf("part"))
         assertNull((plain.single() as Block.Text).paragraphs[0].styles)
+    }
+
+    /** The publisher's presentation (Look) beside the text: the same cases as the desktop's Layout tests. */
+    private val layoutCases = listOf(
+        "p { text-indent: 1.5em; text-align: justify; margin: 0 }" to "<p>Un</p><p>Deux\ntrois</p>",
+        "ul { list-style: square } ol { list-style-type: lower-roman }" to
+            "<ul><li>a</li><li>b<ul><li>c</li></ul></li></ul><ol start=\"3\"><li>x</li><li value=\"9\">y</li></ol>",
+        "" to "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td><p>deux</p><p>lignes</p></td></tr></table><p>après</p>",
+        "" to "<table><tr><td>A</td>\n<td>B</td></tr><tr><td colspan=\"2\">C</td></tr></table>",
+        ".poem p { text-indent: -1em; margin-left: 1em }" to "<div class=\"poem\"><p>vers un</p><p>vers deux</p></div>",
+        "" to "<pre>ligne un\n  ligne deux\n\nligne trois</pre><p>a<br/>b\nc</p>",
+        "p.first::first-letter { font-size: 3em; float: left }" to "<p class=\"first\">«Lettrine» au début.</p>",
+        ".drop-cap { font-size: 2.8em; float: left }" to "<p class=\"first\"><span class=\"drop-cap\">M</span>arie</p>",
+        ".sc { font-variant: small-caps } .note { vertical-align: super }" to
+            "<p>La <span class=\"sc\">Petite</span> note<sup>1</sup><span class=\"note\">2</span> H<sub>2</sub>O <u>u</u> <s>s</s> <code>c</code></p>",
+        "" to "<p>avant</p><hr/><p>après</p><div class=\"separator\">---</div><p>fin</p>",
+        ".saut { page-break-before: always } h1 { text-align: center }" to "<h1>Titre</h1><p class=\"saut\">page</p>",
+        "" to "<figure><img src=\"a.png\" width=\"120\"/><figcaption>Légende</figcaption></figure><p class=\"caption\">x</p>",
+        "p { color: red; float: right; font-size: 30px; position: absolute } @media x { p { margin: 9em } }" to
+            "<p style=\"text-align:right; margin-left: 50%\">droite</p><p align=\"center\">centre</p>",
+        "" to "<p>\u0007 un caractère de contrôle <i>x</i></p>",
+        "a > b, [x] p, p:hover, #id p { font-size: 4em }" to "<p>rien</p>",
+    )
+
+    private fun styled(k: Int) = HtmlText.toBlocks(layoutCases[k].second, Css.parse(layoutCases[k].first)) { it }
+    private fun paras(k: Int) = (styled(k).first { it is Block.Text } as Block.Text).paragraphs
+
+    @Test
+    fun the_text_is_what_it_was_whatever_the_style_sheet() {
+        for ((css, html) in layoutCases) assertEquals(html, describe(Legacy.toBlocks(html) { it }), describe(HtmlText.toBlocks(html, Css.parse(css)) { it }))
+    }
+
+    @Test
+    fun what_the_book_sets() {
+        paras(0).let { assertEquals(listOf(Look.JUSTIFY, 1.5f, listOf(4)), listOf(it[0].look!!.align, it[0].look!!.indent, it[1].look!!.soft!!.toList())) }
+        assertEquals(listOf(Triple("a", Look.SQUARE, 1), Triple("b", Look.SQUARE, 2), Triple("c", Look.SQUARE, 1), Triple("x", Look.LOWER_ROMAN, 3), Triple("y", Look.LOWER_ROMAN, 9)),
+            paras(1).map { Triple(it.text, it.look!!.marker, it.look!!.number) })
+        assertEquals(listOf(1.5f, 1.5f, 3f, 1.5f, 1.5f), paras(1).map { it.look!!.left })
+        paras(2).let { p ->
+            assertEquals("AB", p[0].text)
+            assertEquals(listOf(0, 1, 0, 0, 1, 1, 1, 2, 0, 1, 1, 1), p[0].look!!.cells!!.toList())
+            assertEquals(listOf(listOf(0, 1, 1, 0, 1, 0), listOf(0, 4, 1, 1, 1, 0), listOf(0, 6, 1, 1, 1, 0)), p.subList(1, 4).map { it.look!!.cells!!.toList() })
+            assertNull(p[4].look!!.cells)
+        }
+        assertEquals(listOf(0, 2), paras(3)[1].look!!.cells!!.toList().subList(3, 5))
+        assertEquals(listOf(1f to -1f, 1f to -1f), paras(4).map { it.look!!.left to it.look!!.indent })
+        paras(5).let { p ->
+            assertEquals(listOf("ligne un\nligne deux", "ligne trois", "a\nb\nc"), p.map { it.text })
+            assertNull(p[0].look!!.soft); assertEquals(Para.MONO, p[0].look!!.flags and Para.MONO); assertEquals(listOf(3), p[2].look!!.soft!!.toList())
+        }
+        assertEquals(2, paras(6)[0].look!!.dropCap)
+        assertEquals(1, paras(7)[0].look!!.dropCap)
+        paras(8)[0].let { p ->
+            val r = p.styles!!
+            assertEquals(listOf("Petite" to Para.SMALL_CAPS, "12" to Para.SUPER, "2" to Para.SUB, "u" to Para.UNDERLINE, "s" to Para.STRIKE, "c" to Para.MONO),
+                (r.indices step 3).map { p.text.substring(r[it], r[it + 1]) to (r[it + 2] and Para.FLAGS) })
+        }
+        assertEquals(listOf("avant" to false, "après" to true, "fin" to true), paras(9).map { it.text to it.look!!.rule })
+        assertEquals(listOf(listOf<Any>(Look.CENTER, 1, false, 1.6f), listOf<Any>(Look.AUTO, 0, true, 1f)),
+            paras(10).map { listOf<Any>(it.look!!.align, it.look!!.level, it.look!!.pageBreak, it.look!!.size) })
+        styled(11).let { b ->
+            val img = b[0] as Block.Image
+            assertEquals(120 to Look.AUTO, img.look!!.pixels to img.look!!.align)
+            assertEquals(listOf(Look.CENTER to 0.85f, Look.CENTER to 0.8f), (b[1] as Block.Text).paragraphs.map { it.look!!.align to it.look!!.size })
+        }
+        assertEquals(listOf(listOf<Any>(Look.RIGHT, 4f, 1f, 0), listOf<Any>(Look.CENTER, 0f, 1f, 0)),
+            paras(12).map { listOf<Any>(it.look!!.align, it.look!!.left, it.look!!.size, it.look!!.flags) })
+        assertNull(paras(13)[0].look)
+        assertEquals(1f, paras(14)[0].look!!.size)
     }
 
     /** Every page of the EPUBs in FIXTURES (the magazines, and any book put there): the same text as before. */
