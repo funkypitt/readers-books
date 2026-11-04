@@ -169,9 +169,10 @@ fun LibraryScreen(nav: Nav, app: App) {
                 val sorting by app.remote.sorting.collectAsState()
                 val shelfBooks by app.library.books.collectAsState()
                 val news = remember(index, kinds, s.libraryFolders, s.libraryExcluded) { app.remote.news(s, kinds) }
-                // the books not told apart yet are looked at quietly, a few kilobytes each
+                // the books not told apart yet are looked at quietly, a few kilobytes each — during a
+                // sync too: the folders that hold books are listed first, the rest takes long
                 LaunchedEffect(index, progress) {
-                    if (progress == null && index.scannedAt > 0L)
+                    if (index.scannedAt > 0L)
                         app.remote.sortBooks(s, shelfBooks.filter { it.source != null }.associate { it.source!! to it.magazine })
                 }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {

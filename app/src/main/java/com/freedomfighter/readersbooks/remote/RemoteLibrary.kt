@@ -402,7 +402,6 @@ class RemoteLibrary(private val context: Context) {
             }
             return
         }
-        if (scanning) return
         val remote = remote(s) ?: return
         sortJob = scope.launch {
             val lock = sortLock
