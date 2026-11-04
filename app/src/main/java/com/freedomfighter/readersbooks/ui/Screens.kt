@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.freedomfighter.readersbooks.App
 import com.freedomfighter.readersbooks.R
 import com.freedomfighter.readersbooks.books.Entry
+import com.freedomfighter.readersbooks.books.Magazines
+import com.freedomfighter.readersbooks.remote.Folders
 import com.freedomfighter.readersbooks.data.FontChoice
 import com.freedomfighter.readersbooks.data.Palettes
 import com.freedomfighter.readersbooks.data.SHELF_KEEP_DAYS
@@ -63,6 +65,19 @@ sealed class Screen {
     data object Search : Screen()
     /** Choosing the folder of the library a book of the shelf is sent to. */
     data class SendToLibrary(val id: String) : Screen()
+    /** The issues on the phone of one magazine (by its key), or of one followed folder of the drive. */
+    data class Issues(val magazine: String? = null, val folder: String? = null) : Screen()
+}
+
+/**
+ * A book of the shelf opened: at its page. A magazine never opened shows its contents first;
+ * opened before, it goes back to the article it was left at, the contents one tap above it.
+ */
+fun Nav.openBook(e: Entry) = push(if (e.magazine && e.opened == 0L) Screen.Chapters(e.id) else Screen.Book(e.id))
+
+/** From an article of a magazine to its contents: back down to them, or in place of the article. */
+fun Nav.toContents(id: String) {
+    if (below == Screen.Chapters(id)) pop() else { pop(); push(Screen.Chapters(id)) }
 }
 
 /**
@@ -141,6 +156,16 @@ fun ShelfScreen(nav: Nav, app: App) {
             ShelfSort.SIZE -> books.sortedByDescending { it.size }
         }
     }
+    // the issues of one magazine make one line, where its latest issue would stand
+    val groups = remember(books) { Magazines.groups(books) }
+    val lines = remember(shelf, groups) {
+        val done = HashSet<String>()
+        shelf.mapNotNull { b ->
+            val key = if (b.magazine) Magazines.key(b.title) else ""
+            val issues = groups[key]
+            if (issues == null) b else if (done.add(key)) MagazineLine(key, issues) else null
+        }
+    }
     val orderLabel = shelfSortLabel(settings.shelfSort)
     // what the shelf takes on the phone, and how much of it is there to stay
     val kept = books.count { it.kept }
@@ -152,7 +177,7 @@ fun ShelfScreen(nav: Nav, app: App) {
             scope.launch {
                 val r = withContext(Dispatchers.IO) { app.library.import(uri) }
                 nav.importing = false; nav.importFailed = r.isFailure
-                r.getOrNull()?.let { nav.push(if (it.magazine) Screen.Chapters(it.id) else Screen.Book(it.id)) }
+                r.getOrNull()?.let { nav.openBook(it) }
             }
         }
     }
@@ -167,12 +192,17 @@ fun ShelfScreen(nav: Nav, app: App) {
                 else if (nav.importFailed) item { Small(stringResource(R.string.reader_unsupported), Modifier.padding(horizontal = rowPadH, vertical = rowPadV)) }
                 if (books.isEmpty() && !nav.importing) item { Small(stringResource(R.string.empty_shelf), Modifier.padding(horizontal = rowPadH, vertical = rowPadV), maxLines = 4) }
                 else item { Small(room, Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
-                items(shelf, key = { it.id }) { b ->
-                    val interaction = remember { MutableInteractionSource() }
-                    Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = { nav.push(if (b.magazine) Screen.Chapters(b.id) else Screen.Book(b.id)) }, onLongPress = { bookMenu = b }, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {
-                        T(b.title, size = typo.title, maxLines = 2)
-                        Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened, stringResource(R.string.yesterday)), b.format.name.lowercase(), sizeLabel(b.size),
-                            if (b.kept) stringResource(R.string.kept) else "").filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
+                items(lines, key = { l -> if (l is Entry) l.id else "m:" + (l as MagazineLine).key }) { l ->
+                    if (l is Entry) ShelfBook(l, l.title, onClick = { nav.openBook(l) }, onLongPress = { bookMenu = l })
+                    else {
+                        // one tap: the latest issue, where it was left; held long: every issue
+                        val (key, issues) = l as MagazineLine
+                        val latest = issues.first()
+                        val interaction = remember { MutableInteractionSource() }
+                        Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = { nav.openBook(latest) }, onLongPress = { nav.push(Screen.Issues(magazine = key)) }, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {
+                            T(Magazines.name(latest.title) + " · " + pluralStringResource(R.plurals.n_issues, issues.size, issues.size), size = typo.title, maxLines = 2)
+                            Small(listOf(Magazines.issue(latest.title), if (latest.opened > 0L) "${latest.progress}%" else stringResource(R.string.not_started)).joinToString(" · "), maxLines = 1)
+                        }
                     }
                 }
             }
@@ -188,16 +218,70 @@ fun ShelfScreen(nav: Nav, app: App) {
             MenuItem(stringResource(R.string.settings)) { nav.push(Screen.Settings) }
         ))
         if (orderMenu) TextMenu(stringResource(R.string.order), ShelfSort.entries.map { o -> MenuItem(shelfSortLabel(o)) { app.prefs.setShelfSort(o) } }, onDismiss = { orderMenu = false })
-        bookMenu?.let { b ->
-            TextMenu(b.title, buildList {
-                add(MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) })
-                add(MenuItem(stringResource(if (b.magazine) R.string.contents else R.string.chapters)) { nav.push(Screen.Chapters(b.id)) })
-                // a book of the library: kept on the phone, or free to go when the shelf is cleared; removed, it stays on the drive
-                if (b.fromLibrary) add(MenuItem(stringResource(if (b.kept) R.string.unkeep else R.string.keep_on_phone)) { app.library.setKept(b.id, !b.kept) })
-                add(MenuItem(stringResource(R.string.remove), secondary = if (b.fromLibrary) stringResource(R.string.remove_copy_hint) else null) { app.library.remove(b.id) })
-                if (canSend(settings, b)) add(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(b.id)) })
-            }, onDismiss = { bookMenu = null })
+        bookMenu?.let { b -> ShelfBookMenu(nav, app, b) { bookMenu = null } }
+    }
+}
+
+/** The issues of one magazine, on the shelf: one line under its name. */
+private data class MagazineLine(val key: String, val issues: List<Entry>)
+
+/** One book of the shelf: its title, then where it was left, when, its format and size. */
+@Composable
+fun ShelfBook(b: Entry, title: String, onClick: () -> Unit, onLongPress: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = onClick, onLongPress = onLongPress, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {
+        T(title, size = LocalTypo.current.title, maxLines = 2)
+        Small(listOf(if (b.opened > 0L) "${b.progress}%" else stringResource(R.string.not_started), whenLabel(b.opened, stringResource(R.string.yesterday)), b.format.name.lowercase(), sizeLabel(b.size),
+            if (b.kept) stringResource(R.string.kept) else "").filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1)
+    }
+}
+
+/** What can be done to a book of the shelf, held long. */
+@Composable
+fun ShelfBookMenu(nav: Nav, app: App, b: Entry, onDismiss: () -> Unit) {
+    val settings by app.prefs.settings.collectAsState()
+    TextMenu(b.title, buildList {
+        add(MenuItem(stringResource(R.string.read)) { nav.push(Screen.Book(b.id)) })
+        add(MenuItem(stringResource(if (b.magazine) R.string.contents else R.string.chapters)) { nav.push(Screen.Chapters(b.id)) })
+        // a book of the library: kept on the phone, or free to go when the shelf is cleared; removed, it stays on the drive
+        if (b.fromLibrary) add(MenuItem(stringResource(if (b.kept) R.string.unkeep else R.string.keep_on_phone)) { app.library.setKept(b.id, !b.kept) })
+        add(MenuItem(stringResource(R.string.remove), secondary = if (b.fromLibrary) stringResource(R.string.remove_copy_hint) else null) { app.library.remove(b.id) })
+        if (canSend(settings, b)) add(MenuItem(stringResource(R.string.send_to_library)) { nav.push(Screen.SendToLibrary(b.id)) })
+    }, onDismiss = onDismiss)
+}
+
+/**
+ * The issues on this phone of one magazine, or of one followed folder of the drive, the newest
+ * first. A tap opens one (its contents the first time, else where it was left); held long, the
+ * same menu as on the shelf.
+ */
+@Composable
+fun IssuesScreen(nav: Nav, app: App, magazine: String?, folder: String?) {
+    val books by app.library.books.collectAsState()
+    val index by app.remote.index.collectAsState()
+    var bookMenu by remember { mutableStateOf<Entry?>(null) }
+    val issues = remember(books, index, magazine, folder) {
+        if (magazine != null) Magazines.issues(books, magazine)
+        else {
+            val refs = index.books.filter { Folders.under(folder ?: "", it.folder) }.map { it.ref }.toSet()
+            books.filter { it.source in refs }.sortedWith(compareByDescending<Entry> { Magazines.time(it) }.thenByDescending { it.title })
         }
+    }
+    val title = if (magazine != null) issues.firstOrNull()?.let { Magazines.name(it.title) } ?: "" else (folder ?: "").substringAfterLast('/')
+    BackHandler { nav.pop() }
+    Page {
+        Column(Modifier.fillMaxSize()) {
+            ScreenTitle(title, onBack = { nav.pop() })
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
+                item { Small(if (issues.isEmpty()) stringResource(R.string.no_issues) else pluralStringResource(R.plurals.n_issues, issues.size, issues.size), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 3) }
+                items(issues, key = { it.id }) { e ->
+                    ShelfBook(e, if (magazine != null) Magazines.issue(e.title) else e.title, onClick = { nav.openBook(e) }, onLongPress = { bookMenu = e })
+                }
+            }
+            if (folder != null) { Rule(); TextRow(stringResource(R.string.whole_folder), size = LocalTypo.current.title) { nav.push(Screen.Folder(folder)) } }
+            Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+        bookMenu?.let { b -> ShelfBookMenu(nav, app, b) { bookMenu = null } }
     }
 }
 
@@ -245,7 +329,7 @@ fun SettingsScreen(nav: Nav, app: App) {
                     Small(stringResource(R.string.shelf_cleanup_hint), Modifier.padding(horizontal = rowPadH).padding(bottom = 4.dp), maxLines = 6)
                 }
                 CredentialsRows(app, s, export)
-                if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.prefs.setLibrary("", "", "") }
+                if (s.libraryStarted) TextRow(stringResource(R.string.forget_library), secondary = stringResource(R.string.forget_library_hint)) { app.remote.forget(); app.following.forget(); app.prefs.setLibrary("", "", "") }
                 Rule(Modifier.padding(vertical = 8.dp))
                 Small(stringResource(R.string.highlights_hint), Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 16)
                 NotesAccountRows(s) { prompt = it }

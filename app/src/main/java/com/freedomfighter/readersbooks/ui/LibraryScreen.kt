@@ -45,6 +45,7 @@ import com.freedomfighter.readersbooks.books.BookFormat
 import com.freedomfighter.readersbooks.books.Entry
 import com.freedomfighter.readersbooks.remote.BOOK_EXTENSIONS
 import com.freedomfighter.readersbooks.remote.Folders
+import com.freedomfighter.readersbooks.remote.Followed
 import com.freedomfighter.readersbooks.remote.TRANSCRIPTS_FOLDER
 import com.freedomfighter.readersbooks.remote.RemoteBook
 import com.freedomfighter.readersbooks.remote.Unauthorized
@@ -117,6 +118,8 @@ fun LibraryScreen(nav: Nav, app: App) {
     var menu by remember { mutableStateOf(false) }
     var orderMenu by remember { mutableStateOf(false) }
     var folderMenu by remember { mutableStateOf<String?>(null) }
+    var followMenu by remember { mutableStateOf<String?>(null) }
+    val followed by app.following.folders.collectAsState()
     var prompt by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val export = rememberCredentialsExport()
@@ -152,7 +155,7 @@ fun LibraryScreen(nav: Nav, app: App) {
                 val shown = remember(index, s.libraryFolders, s.libraryExcluded) { app.remote.shown(s) }
                 val known = remember(index) { app.remote.knownFolders().filter { it.path.isNotEmpty() } }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
-                    homeRows(nav, app)
+                    homeRows(nav, app) { followMenu = it }
                     // the sync, by hand, with where it is or when it last ran
                     item {
                         val state = progress?.let { p -> stringResource(R.string.scanning, p.folders, p.books) } ?: if (index.scannedAt > 0L) stringResource(R.string.scanned_at, dateLabel(index.scannedAt)) else null
@@ -186,7 +189,19 @@ fun LibraryScreen(nav: Nav, app: App) {
         }
         // a folder held long: left out of the library, with everything inside it
         folderMenu?.let { path ->
-            TextMenu(path, listOf(MenuItem(stringResource(R.string.leave_out), secondary = stringResource(R.string.leave_out_hint)) { app.prefs.setLibraryExcluded(s.libraryExcluded + path); folderMenu = null }), onDismiss = { folderMenu = null })
+            TextMenu(path, listOf(
+                // followed: its new books are one tap away, at the top of the library
+                if (followed.any { it.folder == path }) MenuItem(stringResource(R.string.unfollow_folder)) { app.following.unfollow(path) }
+                else MenuItem(stringResource(R.string.follow_folder), secondary = stringResource(R.string.follow_folder_hint)) { app.following.follow(path) },
+                MenuItem(stringResource(R.string.leave_out), secondary = stringResource(R.string.leave_out_hint)) { app.prefs.setLibraryExcluded(s.libraryExcluded + path); folderMenu = null }
+            ), onDismiss = { folderMenu = null })
+        }
+        followMenu?.let { path ->
+            TextMenu(path, listOf(
+                MenuItem(stringResource(R.string.issues_on_phone)) { nav.push(Screen.Issues(folder = path)) },
+                MenuItem(stringResource(R.string.whole_folder)) { nav.push(Screen.Folder(path, group = s.libraryTopFolders && Folders.top(path) == path)) },
+                MenuItem(stringResource(R.string.unfollow_folder)) { app.following.unfollow(path) }
+            ), onDismiss = { followMenu = null })
         }
         if (menu) TextMenu(null, listOfNotNull(
             if (progress == null && (!index.complete || index.failed.isNotEmpty())) MenuItem(stringResource(R.string.continue_scan)) { scan(false) } else null,
@@ -207,15 +222,53 @@ fun LibraryScreen(nav: Nav, app: App) {
  * The top of the library: the book read last, one tap from its page, and the books on this
  * phone (the shelf). Rows of a LazyColumn.
  */
-private fun androidx.compose.foundation.lazy.LazyListScope.homeRows(nav: Nav, app: App) {
+private fun androidx.compose.foundation.lazy.LazyListScope.homeRows(nav: Nav, app: App, onFollowMenu: (String) -> Unit) {
     item(key = "home-continue") {
         val books by app.library.books.collectAsState()
         val last = remember(books) { books.filter { it.opened > 0L }.maxByOrNull { it.opened } }
         last?.let { e -> TextRow(e.title, secondary = stringResource(R.string.continue_reading) + " · ${e.progress}%") { nav.push(Screen.Book(e.id)) } }
     }
+    // the followed folders, each with its new books counted from the last listing (no network here)
+    item(key = "home-followed") {
+        val followed by app.following.folders.collectAsState()
+        Column { followed.forEach { f -> FollowedRow(nav, app, f) { onFollowMenu(f.folder) } } }
+    }
     item(key = "home-shelf") {
         val books by app.library.books.collectAsState()
         TextRow(stringResource(R.string.on_this_phone), secondary = pluralStringResource(R.plurals.n_books, books.size, books.size)) { nav.push(Screen.Shelf) }
+    }
+}
+
+/**
+ * A followed folder: its name and how many new books it has. Nothing comes by itself: one tap
+ * lists that folder again and fetches its new books, one after the other (their count on the
+ * second line), then opens the new one — or, when several came or none, the folder's issues on
+ * the phone. Held long: the issues, the whole folder, stop following.
+ */
+@Composable
+private fun FollowedRow(nav: Nav, app: App, f: Followed, onLongPress: () -> Unit) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val shelf by app.library.books.collectAsState()
+    val fetching by app.following.fetching.collectAsState()
+    val failed by app.following.failed.collectAsState()
+    val scope = rememberCoroutineScope()
+    val fresh = remember(index, shelf, f) { app.following.fresh(f, index.books, shelf) }
+    val now = fetching[f.folder]
+    val error = failed[f.folder]
+    val line = when {
+        now != null && now.total == 0 -> stringResource(R.string.follow_looking)
+        now != null -> stringResource(R.string.follow_fetching, (now.done + 1).coerceAtMost(now.total), now.total)
+        error != null -> fetchError(error)
+        fresh.isEmpty() && f.checkedAt > 0L -> stringResource(R.string.follow_nothing_new, whenLabel(f.checkedAt, stringResource(R.string.yesterday)))
+        else -> stringResource(R.string.follow_tap)
+    }
+    val name = f.folder.substringAfterLast('/')
+    TextRow(if (fresh.isEmpty()) name else name + " · " + pluralStringResource(R.plurals.n_new, fresh.size, fresh.size), secondary = line, onLongPress = onLongPress) {
+        if (now != null) return@TextRow
+        scope.launch {
+            app.following.fetch(s, f.folder).await().onSuccess { got -> if (got.size == 1) nav.openBook(got[0]) else nav.push(Screen.Issues(folder = f.folder)) }
+        }
     }
 }
 
@@ -315,12 +368,12 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
     val rootFolder = stringResource(R.string.root_folder)
     val yesterday = stringResource(R.string.yesterday)
     fun open(b: RemoteBook) {
-        app.library.bySource(b.ref)?.let { e -> nav.push(if (e.magazine) Screen.Chapters(e.id) else Screen.Book(e.id)); return }
+        app.library.bySource(b.ref)?.let { e -> nav.openBook(e); return }
         if (b.ref in pending) return
         failed = null
         scope.launch {
             val r = app.downloads.fetch(s, b)
-            r.onSuccess { e -> nav.push(if (e.magazine) Screen.Chapters(e.id) else Screen.Book(e.id)) }
+            r.onSuccess { e -> nav.openBook(e) }
             r.onFailure { failed = it }
         }
     }
@@ -386,6 +439,8 @@ fun LibraryFoldersScreen(nav: Nav, app: App) {
     val excluded = s.libraryExcluded
     val before = remember { s.libraryFolders to s.libraryExcluded }
     var folderMenu by remember { mutableStateOf<String?>(null) }
+    var followMenu by remember { mutableStateOf<String?>(null) }
+    val followed by app.following.folders.collectAsState()
     val rootFolder = stringResource(R.string.root_folder)
     val leftOut = stringResource(R.string.left_out)
     fun leave() { if (s.libraryFolders to s.libraryExcluded != before) app.remote.syncQuietly(s); nav.pop() }

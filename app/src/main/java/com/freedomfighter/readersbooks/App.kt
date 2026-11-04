@@ -5,6 +5,7 @@ import com.freedomfighter.readersbooks.books.Library
 import com.freedomfighter.readersbooks.data.CredentialsShare
 import com.freedomfighter.readersbooks.data.Prefs
 import com.freedomfighter.readersbooks.remote.Downloads
+import com.freedomfighter.readersbooks.remote.Following
 import com.freedomfighter.readersbooks.remote.HighlightSync
 import com.freedomfighter.readersbooks.remote.RemoteLibrary
 
@@ -15,9 +16,10 @@ class App : Application() {
     val remote: RemoteLibrary by lazy { RemoteLibrary(this) }
     val highlights: HighlightSync by lazy { HighlightSync(this) }
     val downloads: Downloads by lazy { Downloads(this) }
+    val following: Following by lazy { Following(this) }
     override fun onCreate() {
         super.onCreate(); prefs; library; CredentialsShare.cleanUp(this)
-        library.onRemoved = { highlights.forget(it) }
+        library.onRemoved = { highlights.forget(it); following.removed(it) }
         library.onMoved = { from, to -> highlights.adopt(from, to) }
         highlights.shelf()
     }

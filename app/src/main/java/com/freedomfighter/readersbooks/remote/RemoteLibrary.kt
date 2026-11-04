@@ -252,12 +252,28 @@ class RemoteLibrary(private val context: Context) {
      * opened, with no scan to ask for. In the background; what cannot be read leaves things as they are.
      */
     fun refreshFolder(s: Settings, name: String = TRANSCRIPTS_FOLDER) {
-        val remote = remote(s) ?: return
-        if (scanning || refreshing || !matches(s) || !_index.value.complete || Folders.leftOut(s.libraryExcluded, name)) return
+        if (scanning || refreshing || relisting.isLocked || !matches(s) || !_index.value.complete || Folders.leftOut(s.libraryExcluded, name)) return
+        scope.launch { relist(s, name) }
+    }
+
+    /**
+     * One folder listed again with the folders inside it, and merged into the library: its books
+     * replaced by what the drive has now. While a sync runs, the sync brings them; for another
+     * account than the index's, nothing is done. Failure leaves the index as it was.
+     */
+    suspend fun relist(s: Settings, name: String): Result<Unit> {
+        val remote = remote(s) ?: return Result.failure(IllegalStateException("no library"))
+        if (scanning || !matches(s)) return Result.success(Unit)
+        return relisting.withLock { relistNow(remote, s, name) }
+    }
+
+    private val relisting = Mutex()
+
+    private suspend fun relistNow(remote: Remote, s: Settings, name: String): Result<Unit> {
         refreshing = true
         val source = _index.value.source
-        scope.launch {
-            try {
+        try {
+            return withContext(Dispatchers.IO) {
                 val top = remote.folderRef(name)
                 val found = ArrayList<RemoteBook>()
                 val queue = ArrayDeque(listOf(top))
@@ -265,18 +281,20 @@ class RemoteLibrary(private val context: Context) {
                 while (queue.isNotEmpty() && found.size < MAX_FOLDERS) {
                     val folder = queue.removeFirst()
                     val listing = try { remote.list(folder) } catch (e: IOException) {
-                        if (folder == top && e.message == "HTTP 404") { gone = true; null } else return@launch
+                        if (folder == top && e.message == "HTTP 404") { gone = true; null } else return@withContext Result.failure(e)
                     } ?: break
-                    queue += listing.folders; found += listing.books
+                    // a folder left out stays out
+                    queue += listing.folders.filter { d -> !Folders.leftOut(s.libraryExcluded, remote.folderPath(d)) }; found += listing.books
                 }
-                if (scanning || _index.value.source != source) return@launch
+                if (scanning || _index.value.source != source) return@withContext Result.success(Unit)
                 val idx = _index.value
-                val merged = idx.books.filter { it.folder != name && !it.folder.startsWith("$name/") } + (if (gone) emptyList() else found)
-                if (merged.map { it.ref }.sorted() != idx.books.map { it.ref }.sorted()) save(idx.copy(books = merged))
-            } catch (e: CancellationException) { throw e
-            } catch (e: Throwable) { // what was known stays
-            } finally { refreshing = false }
-        }
+                val merged = idx.books.filter { !Folders.under(name, it.folder) || Folders.leftOut(s.libraryExcluded, it.folder) } + (if (gone) emptyList() else found)
+                if (merged.toSet() != idx.books.toSet()) save(idx.copy(books = merged))
+                Result.success(Unit)
+            }
+        } catch (e: CancellationException) { throw e
+        } catch (e: Throwable) { return Result.failure(e)
+        } finally { refreshing = false }
     }
 
     fun cancel() { job?.cancel(); _progress.value = null }

@@ -40,11 +40,17 @@ data class Entry(
     /** What tells the same book in two copies (see [BookIdentity]): the SHA-256 of the file, "" until learnt. */
     val fingerprint: String = "",
     /** The EPUB's own identifier, "" for none. */
-    val bookId: String = ""
+    val bookId: String = "",
+    /** In a magazine: where each article was left, by the chapter it begins with, so that it reopens there. */
+    val places: Map<Int, Place> = emptyMap()
 ) {
     /** A book fetched from the drive (or sent to it): the one kind that has highlights, a place that travels, and a copy to go back to. */
     val fromLibrary: Boolean get() = source?.let { it.startsWith("http://") || it.startsWith("https://") } == true
 }
+
+/** A place in a book: a chapter, and the character at the top of the page. */
+@Serializable
+data class Place(val chapter: Int, val charOffset: Int)
 
 @Serializable
 private data class LibraryState(val books: List<Entry> = emptyList())
@@ -91,9 +97,13 @@ class Library(private val context: Context) {
     fun get(id: String): Entry? = _books.value.firstOrNull { it.id == id }
     fun bySource(source: String): Entry? = _books.value.firstOrNull { it.source == source }
 
-    /** `at` is given for a place read on another device: it keeps the date it was read. */
-    fun savePosition(id: String, chapter: Int, charOffset: Int, progress: Int, at: Long = System.currentTimeMillis()) = update { l ->
-        l.map { if (it.id == id) it.copy(chapter = chapter, charOffset = charOffset, progress = progress, opened = at) else it }
+    /**
+     * `at` is given for a place read on another device: it keeps the date it was read. `article`
+     * = the chapter the article being read begins with, in a magazine: its own place is kept too.
+     */
+    fun savePosition(id: String, chapter: Int, charOffset: Int, progress: Int, at: Long = System.currentTimeMillis(), article: Int? = null) = update { l ->
+        l.map { if (it.id == id) it.copy(chapter = chapter, charOffset = charOffset, progress = progress, opened = at,
+            places = if (article != null) it.places + (article to Place(chapter, charOffset)) else it.places) else it }
     }
 
     /** A book of the shelf that was just sent to the drive: from now on a book of the library, by that address and that file name. */

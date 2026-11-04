@@ -69,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.rememberScrollState
@@ -90,6 +91,7 @@ import com.freedomfighter.readersbooks.books.Highlight
 import com.freedomfighter.readersbooks.books.Highlights
 import com.freedomfighter.readersbooks.books.ImageStore
 import com.freedomfighter.readersbooks.books.Magazine
+import com.freedomfighter.readersbooks.books.Para
 import com.freedomfighter.readersbooks.books.ParaKind
 import com.freedomfighter.readersbooks.books.Position
 import com.freedomfighter.readersbooks.data.FontChoice
@@ -117,7 +119,7 @@ fun BookScreen(nav: Nav, app: App, id: String) {
     BackHandler { nav.pop() }
     if (entry == null) { nav.pop(); return }
     Page {
-        Reader(app, entry, onMenu = { menu = true })
+        Reader(app, entry, onMenu = { menu = true }, onContents = { nav.toContents(id) })
         if (menu) {
             val settings by app.prefs.settings.collectAsState()
             val current = if (settings.readerSp > 0) settings.readerSp else defaultReaderSp()
@@ -128,7 +130,7 @@ fun BookScreen(nav: Nav, app: App, id: String) {
             TextMenu(
                 title = entry.title,
                 items = buildList {
-                    if (entry.magazine) add(MenuItem(stringResource(R.string.contents)) { nav.home(); nav.push(Screen.Chapters(id)) })
+                    if (entry.magazine) add(MenuItem(stringResource(R.string.contents)) { nav.toContents(id) })
                     else add(MenuItem(stringResource(R.string.chapters)) { nav.push(Screen.Chapters(id)) })
                     add(MenuItem(stringResource(R.string.larger_text), "$current → ${(current + 2).coerceAtMost(40)}") { app.prefs.setReaderSp((current + 2).coerceAtMost(40)) })
                     add(MenuItem(stringResource(R.string.smaller_text), "$current → ${(current - 2).coerceAtLeast(12)}") { app.prefs.setReaderSp((current - 2).coerceAtLeast(12)) })
@@ -292,6 +294,16 @@ private fun blockText(block: Block.Text, dimArgb: Int): Pair<CharSequence, IntAr
         if (indent) sb.append("\u2003\u2003")
         sb.append(if (indent) p.text.replace("\n", "\n\u2003\u2003") else p.text)
         val end = sb.length
+        // italic and bold: spans on the laid-out string, where every line of an indented
+        // paragraph is two em spaces further on (the indents are not text)
+        p.styles?.let { runs ->
+            val breaks = if (indent) p.text.indices.filter { p.text[it] == '\n' } else emptyList()
+            fun laid(k: Int) = start + (if (indent) 2 + 2 * breaks.count { it < k } else 0) + k
+            for (r in runs.indices step 3) {
+                val style = when (runs[r + 2]) { Para.ITALIC -> Typeface.ITALIC; Para.BOLD -> Typeface.BOLD; else -> Typeface.BOLD_ITALIC }
+                sb.setSpan(StyleSpan(style), laid(runs[r]), laid(runs[r + 1]), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
         when (p.kind) {
             ParaKind.HEADING -> { sb.setSpan(RelativeSizeSpan(1.3f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); sb.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
             ParaKind.LEAD -> sb.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -303,7 +315,7 @@ private fun blockText(block: Block.Text, dimArgb: Int): Pair<CharSequence, IntAr
 }
 
 @Composable
-private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
+private fun Reader(app: App, entry: Entry, onMenu: () -> Unit, onContents: () -> Unit) {
     val colors = LocalColors.current
     val typo = LocalTypo.current
     val settings by app.prefs.settings.collectAsState()
@@ -349,7 +361,9 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         val bottomPad = 20.dp
         val statusBar = WindowInsets.statusBars.asPaddingValuesTop()
         val navBar = WindowInsets.navigationBars.asPaddingValuesBottom()
-        val headerHeight = 22.dp
+        // a magazine's article has a slim bar on top: ‹ previous article · contents · next article ›
+        val magazine = b.magazine
+        val headerHeight = if (magazine != null) 36.dp else 22.dp
         val footerHeight = 22.dp
         val widthPx = with(density) { (maxWidth - hPad * 2).roundToPx() }
         // The page is paginated against the text area's *measured* height; the estimate below only
@@ -385,14 +399,27 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
         }
         // Resolve the wanted character into a page whenever the layout (size, width) changes.
         LaunchedEffect(layout, jumps) { page = layout.pageFor(wantedChar).coerceIn(0, layout.pageCount - 1) }
+        // the chapters the articles begin with: an article longer than a chapter goes on in the next ones
+        val starts = remember(magazine) { magazine?.articles?.map { it.chapter }?.distinct()?.sorted() ?: emptyList() }
+        val article = starts.lastOrNull { it <= chapter }
         LaunchedEffect(chapter, page, layout) {
             if (page in 0 until layout.pageCount) {
                 val pct = ((b.charsBefore(chapter) + layout.pageStartChar(page)).toFloat() / b.totalLength.coerceAtLeast(1) * 100).toInt()
-                app.library.savePosition(entry.id, chapter, layout.pageStartChar(page), pct)
+                app.library.savePosition(entry.id, chapter, layout.pageStartChar(page), pct, article = article)
             }
         }
 
         fun goTo(c: Int, charOffset: Int) { chapter = c; wantedChar = charOffset }
+        /** Another article, where it was left (at its top the first time). */
+        fun toArticle(start: Int) {
+            turns++
+            lastTurn = System.currentTimeMillis()
+            val at = entry.places[start]
+            if (at != null) goTo(at.chapter.coerceIn(0, b.chapters.size - 1), at.charOffset) else goTo(start, 0)
+        }
+        val previousArticle = article?.let { a -> starts.lastOrNull { it < a } }
+        val nextArticle = starts.firstOrNull { it > chapter }
+        var headerBottom by remember { mutableStateOf(0f) }    // in the root's coordinates
         fun next() {
             turns++
             lastTurn = System.currentTimeMillis()
@@ -501,7 +528,7 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { outerPos = it.positionInRoot() }
-                .pointerInput(layout, chapter, safePage, shown) {
+                .pointerInput(layout, chapter, safePage, shown, headerBottom, entry.places) {
                     // As on a reading tablet: a tap on the left third goes back, on the right third
                     // forward, in the middle it opens the book's menu — or, on a picture, the picture
                     // on the whole screen. A tap on a highlight opens it, except in a page-turn zone
@@ -521,6 +548,15 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                             @Suppress("UNREACHABLE_CODE") false
                         } == null
                         if (!held) {
+                            // the article bar: its left third, its middle, its right third
+                            if (lifted && !moved && magazine != null && down.position.y < headerBottom - outerPos.y) {
+                                when {
+                                    down.position.x < size.width / 3f -> previousArticle?.let { toArticle(it) }
+                                    down.position.x > size.width * 2f / 3f -> nextArticle?.let { toArticle(it) }
+                                    else -> onContents()
+                                }
+                                return@awaitEachGesture
+                            }
                             if (lifted && !moved) {
                                 val h = highlightAt(down.position)
                                 val zone = when { down.position.x < size.width / 3f -> -1; down.position.x > size.width * 2f / 3f -> 1; else -> 0 }
@@ -552,7 +588,16 @@ private fun Reader(app: App, entry: Entry, onMenu: () -> Unit) {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = hPad)
         ) {
-            Row(Modifier.fillMaxWidth().padding(top = topPad).height(headerHeight)) {
+            if (magazine != null) {
+                Row(Modifier.fillMaxWidth().padding(top = topPad * 0.5f).height(headerHeight).onGloballyPositioned { headerBottom = it.positionInRoot().y + it.size.height + with(density) { 8.dp.toPx() } },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    val off = colors.dim.copy(alpha = 0.35f)
+                    T("‹", Modifier.weight(1f), size = typo.title, color = if (previousArticle != null) colors.dim else off, maxLines = 1, align = TextAlign.Start)
+                    Small(stringResource(R.string.contents), Modifier.weight(2f), maxLines = 1, align = TextAlign.Center)
+                    T("›", Modifier.weight(1f), size = typo.title, color = if (nextArticle != null) colors.dim else off, maxLines = 1, align = TextAlign.End)
+                }
+                VSpace(topPad * 0.5f)
+            } else Row(Modifier.fillMaxWidth().padding(top = topPad).height(headerHeight)) {
                 Small(b.title, Modifier.weight(1f), maxLines = 1, align = TextAlign.Start)
             }
             Canvas(Modifier.weight(1f).fillMaxWidth().onSizeChanged { canvasHeight = it.height }.onGloballyPositioned { canvasPos = it.positionInRoot() }) {
@@ -754,8 +799,10 @@ fun BookChaptersScreen(nav: Nav, app: App, id: String) {
             ScreenTitle(entry.title, onBack = { nav.pop() })
             val magazine = book?.magazine
             if (magazine != null) {
-                MagazineContents(magazine, entry, app, listState) { article ->
-                    app.library.savePosition(entry.id, article.chapter, 0, entry.progress)
+                MagazineContents(magazine, entry, app) { article ->
+                    // the article where it was left, else at its top
+                    val at = entry.places[article.chapter]
+                    app.library.savePosition(entry.id, at?.chapter ?: article.chapter, at?.charOffset ?: 0, entry.progress, article = article.chapter)
                     nav.push(Screen.Book(id))
                 }
                 return@Column
@@ -775,52 +822,128 @@ fun BookChaptersScreen(nav: Nav, app: App, id: String) {
     }
 }
 
-/** Articles under their section names, each with its author and cover picture. */
+/**
+ * Articles under their section names, each with its author and its picture, as whole pages to
+ * turn (e-ink: nothing scrolls): a tap on the left third goes back a page, on the right third
+ * forward, as in the reader; in the middle it opens the article under it. A page that begins in
+ * the middle of a section names the section again. The page of the article read last comes first.
+ */
 @Composable
-private fun MagazineContents(magazine: Magazine, entry: Entry, app: App, listState: androidx.compose.foundation.lazy.LazyListState, onOpen: (Magazine.Article) -> Unit) {
+private fun MagazineContents(magazine: Magazine, entry: Entry, app: App, onOpen: (Magazine.Article) -> Unit) {
     val colors = LocalColors.current
     val typo = LocalTypo.current
     val images = remember(entry.fileName) { app.library.images(entry) }
-    val current = magazine.articles.lastOrNull { it.chapter <= entry.chapter && entry.opened > 0L }
-    LazyColumn(state = listState, contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
-        magazine.articles.forEachIndexed { i, a ->
-            if (a.category.isNotEmpty() && (i == 0 || a.category != magazine.articles[i - 1].category)) {
-                item(key = "s$i") {
-                    Small(a.category.uppercase(), Modifier.padding(start = rowPadH, end = rowPadH, top = rowPadV * 0.9f, bottom = 2.dp), maxLines = 1, align = TextAlign.Start)
-                }
+    val articles = magazine.articles
+    val current = articles.lastOrNull { it.chapter <= entry.chapter && entry.opened > 0L }
+    val withPictures = articles.any { it.image != null }
+    var page by remember(entry.fileName) { mutableStateOf(-1) }        // -1: the page of the article read last
+    val layout = remember { ContentsLayout() }
+
+    @Composable
+    fun Section(name: String) = Small(name.uppercase(), Modifier.fillMaxWidth().padding(start = rowPadH, end = rowPadH, top = rowPadV * 0.9f, bottom = 2.dp), maxLines = 1, align = TextAlign.Start)
+
+    @Composable
+    fun ArticleRow(a: Magazine.Article, picture: Boolean) {
+        val inverted = a === current
+        val fg = if (inverted) colors.onAccent else colors.fg
+        val dim = if (inverted) colors.onAccent.copy(alpha = 0.6f) else colors.dim
+        Row(
+            Modifier.fillMaxWidth()
+                .tileCard(if (inverted) colors.accent else colors.tile)
+                .background(if (inverted) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
+                .padding(horizontal = rowInset(), vertical = rowPadV * 0.6f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                T(a.title, size = typo.title, color = fg, maxLines = 3, align = TextAlign.Start)
+                if (a.author != null) Small(a.author, color = dim, maxLines = 1, align = TextAlign.Start)
             }
-            item(key = "a$i") {
-                val inverted = a === current
-                val fg = if (inverted) colors.onAccent else colors.fg
-                val dim = if (inverted) colors.onAccent.copy(alpha = 0.6f) else colors.dim
-                val interaction = remember { MutableInteractionSource() }
-                Row(
-                    Modifier.fillMaxWidth()
-                        .tileCard(rowSurface(interaction, inverted))
-                        .background(if (inverted) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
-                        .clickable(interactionSource = interaction, indication = null) { onOpen(a) }
-                        .padding(horizontal = rowInset(), vertical = rowPadV * 0.6f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        T(a.title, size = typo.title, color = fg, maxLines = 3, align = TextAlign.Start)
-                        if (a.author != null) Small(a.author, color = dim, maxLines = 1, align = TextAlign.Start)
-                    }
-                    if (a.image != null) {
-                        Spacer(Modifier.width(14.dp))
-                        Thumb(images, a.image)
-                    }
-                }
+            if (withPictures && a.image != null) {
+                Spacer(Modifier.width(14.dp))
+                // measured with an empty box of the picture's size: the pictures of the other pages are never decoded
+                if (picture) Thumb(images, a.image) else Box(Modifier.size(THUMB))
             }
         }
     }
+
+    Column(Modifier.fillMaxSize()) {
+        SubcomposeLayout(
+            Modifier.weight(1f).fillMaxWidth().pointerInput(layout) {
+                detectTapGestures { at ->
+                    val pages = layout.pages
+                    if (pages.isEmpty()) return@detectTapGestures
+                    val p = layout.shown
+                    when {
+                        at.x < size.width / 3f && pages.size > 1 -> { if (p > 0) page = p - 1 }
+                        at.x > size.width * 2f / 3f && pages.size > 1 -> { if (p + 1 < pages.size) page = p + 1 }
+                        else -> layout.hits.firstOrNull { (top, bottom, _) -> at.y >= top && at.y < bottom }?.let { onOpen(articles[it.third]) }
+                    }
+                }
+            }
+        ) { constraints ->
+            val loose = constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+            val height = constraints.maxHeight
+            // every article measured once, its section's name too (shown before it, or at the top of a page)
+            val rows = articles.indices.map { i -> subcompose("a$i") { ArticleRow(articles[i], false) }.first().measure(loose).height }
+            val sections = articles.indices.map { i -> if (articles[i].category.isEmpty()) 0 else subcompose("s$i") { Section(articles[i].category) }.first().measure(loose).height }
+            val pages = ArrayList<List<Int>>()
+            var onPage = ArrayList<Int>(); var y = 0
+            for (i in articles.indices) {
+                val opens = articles[i].category.isNotEmpty() && (i == 0 || articles[i].category != articles[i - 1].category)
+                fun need(first: Boolean) = rows[i] + if (opens || (first && articles[i].category.isNotEmpty())) sections[i] else 0
+                if (onPage.isNotEmpty() && y + need(false) > height) { pages += onPage; onPage = ArrayList(); y = 0 }
+                y += need(onPage.isEmpty()); onPage += i
+            }
+            if (onPage.isNotEmpty()) pages += onPage
+            val wanted = if (page >= 0) page else pages.indexOfFirst { p -> p.any { articles[it] === current } }.coerceAtLeast(0)
+            val shown = wanted.coerceIn(0, (pages.size - 1).coerceAtLeast(0))
+            layout.pages = pages; layout.shown = shown
+            val hits = ArrayList<Triple<Int, Int, Int>>()
+            val placeables = ArrayList<Pair<androidx.compose.ui.layout.Placeable, Int>>()
+            var top = 0
+            pages.getOrNull(shown)?.forEachIndexed { k, i ->
+                val opens = articles[i].category.isNotEmpty() && (i == 0 || articles[i].category != articles[i - 1].category)
+                if (opens || (k == 0 && articles[i].category.isNotEmpty())) {
+                    val sp = subcompose("S$i") { Section(articles[i].category) }.first().measure(loose)
+                    placeables += sp to top; top += sp.height
+                }
+                val ap = subcompose("A$i") { ArticleRow(articles[i], true) }.first().measure(loose)
+                hits += Triple(top, top + ap.height, i)
+                placeables += ap to top; top += ap.height
+            }
+            layout.hits = hits
+            layout(constraints.maxWidth, height) { placeables.forEach { (pl, at) -> pl.placeRelative(0, at) } }
+        }
+        // the page, as in the reader
+        val pages = layout.pageCount
+        Row(Modifier.fillMaxWidth().padding(horizontal = rowPadH).height(28.dp), verticalAlignment = Alignment.CenterVertically) {
+            Small(if (pages > 1) "${layout.shownState + 1}/$pages" else "", Modifier.weight(1f), maxLines = 1, align = TextAlign.End)
+        }
+        Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 8.dp))
+    }
+}
+
+private val THUMB = 104.dp
+
+/** What the contents' layout found, for the taps and the page number: the pages, the one shown, where its articles are. */
+private class ContentsLayout {
+    private val count = mutableStateOf(0)
+    var pages: List<List<Int>> = emptyList()
+        set(v) { field = v; if (count.value != v.size) count.value = v.size }
+    val pageCount: Int get() = count.value
+    var hits: List<Triple<Int, Int, Int>> = emptyList()
+    private val shownFlow = mutableStateOf(0)
+    var shown: Int
+        get() = shownFlow.value
+        set(v) { if (shownFlow.value != v) shownFlow.value = v }
+    val shownState: Int get() = shownFlow.value
 }
 
 @Composable
 private fun Thumb(images: ImageStore, source: String) {
-    val px = with(LocalDensity.current) { 72.dp.roundToPx() }
+    val px = with(LocalDensity.current) { THUMB.roundToPx() }
     val bmp by produceState<Bitmap?>(null, source) { value = withContext(Dispatchers.IO) { images.bitmap(source, px * 2) } }
     val b = bmp
-    if (b != null) Image(b.asImageBitmap(), contentDescription = null, Modifier.size(72.dp), contentScale = ContentScale.Crop)
-    else Box(Modifier.size(72.dp))
+    if (b != null) Image(b.asImageBitmap(), contentDescription = null, Modifier.size(THUMB), contentScale = ContentScale.Crop)
+    else Box(Modifier.size(THUMB))
 }

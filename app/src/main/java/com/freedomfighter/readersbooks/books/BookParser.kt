@@ -326,13 +326,14 @@ object BookParser {
                     if (size + p.text.length > max && (part.isNotEmpty() || blocks.isNotEmpty())) flushPart()
                     // A single monstrous paragraph is cut hard.
                     if (p.text.length > max) {
-                        var t = p.text
-                        while (t.length > max) {
-                            val cut = t.lastIndexOf(' ', max).let { if (it < max / 2) max else it }
-                            part += Para(t.substring(0, cut), p.kind); t = t.substring(cut).trimStart()
+                        var o = 0
+                        while (p.text.length - o > max) {
+                            val cut = p.text.substring(o).lastIndexOf(' ', max).let { if (it < max / 2) max else it }
+                            part += p.slice(o, o + cut); o += cut
+                            while (o < p.text.length && p.text[o].isWhitespace()) o++
                             flushPart()
                         }
-                        if (t.isNotEmpty()) { part += Para(t, p.kind); size += t.length }
+                        if (o < p.text.length) { part += p.slice(o, p.text.length); size += p.text.length - o }
                     } else { part += p; size += p.text.length + 1 }
                 }
             }
@@ -363,10 +364,23 @@ object HtmlText {
     private const val MARK = '\u0001'
     private const val IMG = "\u0002"
 
+    // Italic and bold: a mark where each begins and ends, put in place of the tag and taken out
+    // again before the text is cut into paragraphs, each character keeping what it was set in.
+    private val emphasis = Regex("<(/?)(i|em|b|strong)(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
+    private const val ITALIC_ON = '\u0003'
+    private const val ITALIC_OFF = '\u0004'
+    private const val BOLD_ON = '\u0005'
+    private const val BOLD_OFF = '\u0006'
+    private val spaces = Regex("[ \\t\\r\\u00A0\\u2007\\u202F]+")
+    private val blankLine = Regex("\n\\s*\n")
+    private val kindMark = Regex("$MARK[HLS]")
+
     /**
      * Paragraphs with their kind, and the images between them. `image` maps an `src` to the
      * source the reader can load, or null to drop it. Markers are single control characters
      * placed before tags are stripped, so the split into paragraphs stays the same as before.
+     * Words in italic or bold keep it as runs beside the text ([Para.styles]): the text itself
+     * is exactly what it is without them, so a place in it is the same with or without.
      */
     fun toBlocks(html: String, image: (String) -> String?): List<Block> {
         var s = html
@@ -383,33 +397,125 @@ object HtmlText {
                 else -> m.value
             }
         }
+        // a text that carries these control characters itself is left without emphasis, as it is
+        val marked = s.none { it in ITALIC_ON..BOLD_OFF }
+        if (marked) s = emphasis.replace(s) { m ->
+            val italic = m.groupValues[2].lowercase().let { it == "i" || it == "em" }
+            if (m.groupValues[3].trimEnd().endsWith("/")) "" // <b/>: nothing to set
+            else if (m.groupValues[1].isEmpty()) (if (italic) ITALIC_ON else BOLD_ON).toString() else (if (italic) ITALIC_OFF else BOLD_OFF).toString()
+        }
         s = lineBreak.replace(s, "\n")
         s = paragraphBreak.replace(s, "\n\n")
         s = anyTag.replace(s, "")
         s = decode(s)
-        s = s.replace(Regex("[ \\t\\r\\u00A0\\u2007\\u202F]+"), " ")
+        // the marks out: what is left is the text without them, and what each character is set in
+        val plain = StringBuilder(s.length)
+        val setIn = ByteArray(s.length)
+        var italic = 0; var bold = 0
+        for (c in s) {
+            if (marked) when (c) {
+                ITALIC_ON -> { italic++; continue }
+                ITALIC_OFF -> { if (italic > 0) italic--; continue }
+                BOLD_ON -> { bold++; continue }
+                BOLD_OFF -> { if (bold > 0) bold--; continue }
+            }
+            setIn[plain.length] = ((if (italic > 0) Para.ITALIC else 0) or (if (bold > 0) Para.BOLD else 0)).toByte()
+            plain.append(c)
+        }
+        // From here on every step is the plain text's, each character remembering where it came from.
+        val text = Traced.collapse(plain, spaces)
         val blocks = ArrayList<Block>()
         var paras = ArrayList<Para>()
-        s.split(Regex("\n\\s*\n")).forEach { raw ->
-            val para = raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
-            if (para.isEmpty()) return@forEach
-            if (para.startsWith(IMG)) {
+        var from = 0
+        val raws = ArrayList<Traced>()
+        for (m in blankLine.findAll(text.chars)) { raws += text.slice(from, m.range.first); from = m.range.last + 1 }
+        raws += text.slice(from, text.chars.length)
+        for (raw in raws) {
+            val para = raw.lines()
+            if (para.chars.isEmpty()) continue
+            if (para.chars.startsWith(IMG)) {
                 if (paras.isNotEmpty()) { blocks += Block.Text(paras); paras = ArrayList() }
-                blocks += Block.Image(para.substring(1).substringBefore('\n').trim())
-                return@forEach
+                blocks += Block.Image(para.chars.substring(1).substringBefore('\n').trim())
+                continue
             }
             var kind = ParaKind.NORMAL
-            var text = para
-            while (text.isNotEmpty() && text[0] == MARK && text.length > 1) {
-                kind = when (text[1]) { 'H' -> ParaKind.HEADING; 'L' -> ParaKind.LEAD; 'S' -> ParaKind.SMALL; else -> kind }
-                text = text.substring(2).trimStart()
+            var t = para
+            while (t.chars.isNotEmpty() && t.chars[0] == MARK && t.chars.length > 1) {
+                kind = when (t.chars[1]) { 'H' -> ParaKind.HEADING; 'L' -> ParaKind.LEAD; 'S' -> ParaKind.SMALL; else -> kind }
+                t = t.slice(2, t.chars.length).trimStart()
             }
-            text = text.replace(Regex("$MARK[HLS]"), "")
-            if (text == "---" || text == "♦") return@forEach // the pipeline's separators
-            if (text.isNotEmpty()) paras += Para(text, kind)
+            t = t.without(kindMark)
+            if (t.chars == "---" || t.chars == "♦") continue // the pipeline's separators
+            if (t.chars.isNotEmpty()) paras += Para(t.chars, kind, t.styles(setIn))
         }
         if (paras.isNotEmpty()) blocks += Block.Text(paras)
         return blocks
+    }
+
+    /**
+     * A piece of text with, for each of its characters, its place in the text it was cut from
+     * (-1 for a line break put in between): the steps that make paragraphs, done here so that
+     * each character keeps track of whether it was in italic or bold.
+     */
+    private class Traced(val chars: String, val at: IntArray) {
+        fun slice(from: Int, to: Int) = Traced(chars.substring(from, to), at.copyOfRange(from, to))
+
+        fun trimStart(): Traced { var i = 0; while (i < chars.length && chars[i].isWhitespace()) i++; return slice(i, chars.length) }
+
+        fun trim(): Traced {
+            var i = 0; var j = chars.length
+            while (i < j && chars[i].isWhitespace()) i++
+            while (j > i && chars[j - 1].isWhitespace()) j--
+            return slice(i, j)
+        }
+
+        /** Its lines trimmed, the empty ones dropped, joined again by line breaks. */
+        fun lines(): Traced {
+            val parts = ArrayList<Traced>()
+            var from = 0
+            for (i in 0..chars.length) if (i == chars.length || chars[i] == '\n') { slice(from, i).trim().takeIf { it.chars.isNotEmpty() }?.let { parts += it }; from = i + 1 }
+            if (parts.size == 1) return parts[0]
+            val sb = StringBuilder(); val at = ArrayList<Int>()
+            parts.forEachIndexed { k, p -> if (k > 0) { sb.append('\n'); at += -1 }; sb.append(p.chars); p.at.forEach { at += it } }
+            return Traced(sb.toString(), at.toIntArray())
+        }
+
+        fun without(re: Regex): Traced {
+            if (!re.containsMatchIn(chars)) return this
+            val sb = StringBuilder(); val keep = ArrayList<Int>()
+            var from = 0
+            for (m in re.findAll(chars)) { for (i in from until m.range.first) { sb.append(chars[i]); keep += at[i] }; from = m.range.last + 1 }
+            for (i in from until chars.length) { sb.append(chars[i]); keep += at[i] }
+            return Traced(sb.toString(), keep.toIntArray())
+        }
+
+        /** The runs of italic and bold, from what each character of the source was set in. */
+        fun styles(setIn: ByteArray): IntArray? {
+            var runs: ArrayList<Int>? = null
+            var i = 0
+            while (i < chars.length) {
+                val f = if (at[i] >= 0) setIn[at[i]].toInt() else 0
+                var j = i + 1
+                while (j < chars.length && (if (at[j] >= 0) setIn[at[j]].toInt() else f) == f) j++
+                if (f != 0) { val r = runs ?: ArrayList<Int>().also { runs = it }; r += i; r += j; r += f }
+                i = j
+            }
+            return runs?.toIntArray()
+        }
+
+        companion object {
+            /** Every run of these spaces made one plain space, as the text always was. */
+            fun collapse(text: CharSequence, spaces: Regex): Traced {
+                val sb = StringBuilder(text.length); val at = IntArray(text.length)
+                var n = 0; var from = 0
+                for (m in spaces.findAll(text)) {
+                    for (i in from until m.range.first) { sb.append(text[i]); at[n++] = i }
+                    sb.append(' '); at[n++] = m.range.first; from = m.range.last + 1
+                }
+                for (i in from until text.length) { sb.append(text[i]); at[n++] = i }
+                return Traced(sb.toString(), at.copyOf(n))
+            }
+        }
     }
 
     /** Plain paragraphs, for callers that only want text. */

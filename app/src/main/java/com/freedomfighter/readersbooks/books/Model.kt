@@ -3,7 +3,27 @@ package com.freedomfighter.readersbooks.books
 /** How a paragraph is set. The reader keeps one paint and derives the others from it. */
 enum class ParaKind { NORMAL, HEADING, LEAD, SMALL }
 
-class Para(val text: String, val kind: ParaKind = ParaKind.NORMAL)
+/**
+ * A paragraph: its text, as it is counted (highlights are places in it), and its kind. `styles`
+ * marks the words set in italic or bold, as runs (start, end, [ITALIC] | [BOLD]) of the text,
+ * three numbers a run; they change nothing in the text itself.
+ */
+class Para(val text: String, val kind: ParaKind = ParaKind.NORMAL, val styles: IntArray? = null) {
+    /** The part of the paragraph from `from` to `to`, with its runs. */
+    fun slice(from: Int, to: Int): Para {
+        val s = styles ?: return Para(text.substring(from, to), kind)
+        val runs = ArrayList<Int>()
+        for (i in s.indices step 3) {
+            val a = maxOf(s[i], from); val b = minOf(s[i + 1], to)
+            if (b > a) { runs += a - from; runs += b - from; runs += s[i + 2] }
+        }
+        return Para(text.substring(from, to), kind, if (runs.isEmpty()) null else runs.toIntArray())
+    }
+    companion object {
+        const val ITALIC = 1
+        const val BOLD = 2
+    }
+}
 
 /** A chapter is a run of paragraphs with images between them. */
 sealed class Block {

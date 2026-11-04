@@ -183,4 +183,27 @@
     <string name="continue_reading">продолжить чтение</string>
     <string name="setup_library">подключить библиотеку</string>
     <string name="setup_library_hint">ваши книги на вашем диске, на всех ваших устройствах</string>
+    <!-- followed folders of the drive, and the issues of a magazine -->
+    <string name="follow_folder">следить за этой папкой</string>
+    <string name="follow_folder_hint">её новые книги в одно касание, вверху библиотеки</string>
+    <string name="unfollow_folder">больше не следить за этой папкой</string>
+    <string name="follow_tap">папка под наблюдением · нажмите, чтобы получить новое</string>
+    <string name="follow_looking">поиск новых книг…</string>
+    <string name="follow_fetching">загрузка %1$d из %2$d…</string>
+    <string name="follow_nothing_new">ничего нового · %s</string>
+    <string name="issues_on_phone">выпуски на этом телефоне</string>
+    <string name="no_issues">на этом телефоне пока нет ни одного выпуска из этой папки</string>
+    <string name="whole_folder">вся папка на диске</string>
+    <plurals name="n_new">
+        <item quantity="one">%d новый</item>
+        <item quantity="few">%d новых</item>
+        <item quantity="many">%d новых</item>
+        <item quantity="other">%d новых</item>
+    </plurals>
+    <plurals name="n_issues">
+        <item quantity="one">%d выпуск</item>
+        <item quantity="few">%d выпуска</item>
+        <item quantity="many">%d выпусков</item>
+        <item quantity="other">%d выпуска</item>
+    </plurals>
 </resources>

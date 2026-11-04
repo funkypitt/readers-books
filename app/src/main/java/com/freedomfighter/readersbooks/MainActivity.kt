@@ -29,6 +29,8 @@ import com.freedomfighter.readersbooks.ui.Screen
 import com.freedomfighter.readersbooks.ui.SettingsScreen
 import com.freedomfighter.readersbooks.ui.ShelfScreen
 import com.freedomfighter.readersbooks.ui.homeFor
+import com.freedomfighter.readersbooks.ui.openBook
+import com.freedomfighter.readersbooks.ui.IssuesScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +62,7 @@ class MainActivity : ComponentActivity() {
                     Screen.AllBooks -> AllBooksScreen(nav, app)
                     Screen.Search -> SearchScreen(nav, app)
                     is Screen.SendToLibrary -> SendToLibraryScreen(nav, app, s.id)
+                    is Screen.Issues -> IssuesScreen(nav, app, s.magazine, s.folder)
                 }
             }
         }
@@ -87,7 +90,7 @@ class MainActivity : ComponentActivity() {
             val r = withContext(Dispatchers.IO) { app.library.import(uri!!) }
             nav.importing = false
             nav.importFailed = r.isFailure
-            r.getOrNull()?.let { nav.home(); nav.push(if (it.magazine) Screen.Chapters(it.id) else Screen.Book(it.id)) }
+            r.getOrNull()?.let { nav.home(); nav.openBook(it) }
         }
     }
 

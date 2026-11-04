@@ -46,8 +46,20 @@ network is used only if you set up a library on your own drive. It extends the b
   links are dropped; footnotes are small print. MOBI means PalmDoc; no PDF (a paper in PDF
   becomes an EPUB in the desktop app, and comes here through the library).
 * A magazine issue (an EPUB whose contents page carries a section, a title and an author per
-  article, as the newspapers pipeline writes them) opens on its contents: sections, titles,
-  authors and cover pictures. An article is a chapter; back returns to the contents.
+  article, as the newspapers pipeline writes them) opens on its contents the first time:
+  sections, titles, authors and larger pictures, as whole pages turned with the side thirds of
+  the screen, an article opened with a tap in the middle. An article is a chapter; a slim bar on
+  top leads to the previous article, the contents and the next one, and each article reopens
+  where it was left. Opened again, an issue goes back to the article it was left at. Several
+  issues of one magazine make one line of the shelf (« 24 heures · 3 issues »): a tap opens the
+  latest, a long press lists them all. Issues belong to the same magazine when their titles
+  agree once the date is taken off.
+* Italic and bold show in every book; the text itself, where highlights are counted, is the same
+  as without them.
+* A folder of the library can be followed (long press on it): it then sits near the top of the
+  library with the number of its new books, counted from the last listing of the drive. Nothing
+  is downloaded by itself: a tap lists that folder again, fetches its new books one after the
+  other and opens the new one, or the folder's issues when several came or none.
 * Optional library: the e-books kept on a drive, at a WebDAV address with a username and an
   application password (kDrive, Nextcloud, any WebDAV server) that the app may read and write,
   listed by folder — every folder, or the top folders only, each standing for everything inside

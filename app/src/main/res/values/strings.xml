@@ -177,4 +177,23 @@
     <string name="continue_reading">continue reading</string>
     <string name="setup_library">set up a library</string>
     <string name="setup_library_hint">your books on your drive, on all your devices</string>
+    <!-- followed folders of the drive, and the issues of a magazine -->
+    <string name="follow_folder">follow this folder</string>
+    <string name="follow_folder_hint">its new books one tap away, at the top of the library</string>
+    <string name="unfollow_folder">stop following this folder</string>
+    <string name="follow_tap">followed folder · tap to fetch what is new</string>
+    <string name="follow_looking">looking for new books…</string>
+    <string name="follow_fetching">fetching %1$d of %2$d…</string>
+    <string name="follow_nothing_new">nothing new · %s</string>
+    <string name="issues_on_phone">issues on this phone</string>
+    <string name="no_issues">no issue of this folder is on this phone yet</string>
+    <string name="whole_folder">the whole folder on the drive</string>
+    <plurals name="n_new">
+        <item quantity="one">%d new</item>
+        <item quantity="other">%d new</item>
+    </plurals>
+    <plurals name="n_issues">
+        <item quantity="one">%d issue</item>
+        <item quantity="other">%d issues</item>
+    </plurals>
 </resources>

@@ -178,4 +178,23 @@
     <string name="continue_reading">reprendre la lecture</string>
     <string name="setup_library">configurer une bibliothèque</string>
     <string name="setup_library_hint">vos livres sur votre drive, sur tous vos appareils</string>
+    <!-- followed folders of the drive, and the issues of a magazine -->
+    <string name="follow_folder">suivre ce dossier</string>
+    <string name="follow_folder_hint">ses nouveaux livres à un geste, en haut de la bibliothèque</string>
+    <string name="unfollow_folder">ne plus suivre ce dossier</string>
+    <string name="follow_tap">dossier suivi · touchez pour chercher les nouveautés</string>
+    <string name="follow_looking">recherche des nouveautés…</string>
+    <string name="follow_fetching">téléchargement %1$d sur %2$d…</string>
+    <string name="follow_nothing_new">rien de nouveau · %s</string>
+    <string name="issues_on_phone">numéros sur ce téléphone</string>
+    <string name="no_issues">aucun numéro de ce dossier n’est encore sur ce téléphone</string>
+    <string name="whole_folder">tout le dossier sur le drive</string>
+    <plurals name="n_new">
+        <item quantity="one">%d nouveau</item>
+        <item quantity="other">%d nouveaux</item>
+    </plurals>
+    <plurals name="n_issues">
+        <item quantity="one">%d numéro</item>
+        <item quantity="other">%d numéros</item>
+    </plurals>
 </resources>
