@@ -7,14 +7,14 @@ plugins {
 
 android {
     namespace = "com.freedomfighter.readersbooks"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.freedomfighter.readersbooks"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 34
-        versionName = "1.22.2"
+        targetSdk = 36
+        versionCode = 35
+        versionName = "1.23.0"
     }
 
     buildTypes { release { isMinifyEnabled = false } }

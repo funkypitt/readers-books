@@ -1,0 +1,1 @@
+Compatible with Android 16: transparent system bars, and a library sync that stops cleanly when Android asks it to. Nothing else changes.

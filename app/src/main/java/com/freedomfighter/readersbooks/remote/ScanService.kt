@@ -36,7 +36,15 @@ class ScanService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) })
         val first = notification(app.remote.progress.value ?: Progress(0, 0))
-        if (Build.VERSION.SDK_INT >= 29) startForeground(ID, first, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else startForeground(ID, first)
+        try {
+            if (Build.VERSION.SDK_INT >= 29) startForeground(ID, first, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else startForeground(ID, first)
+        } catch (e: IllegalStateException) {
+            // Android 15+: the daily dataSync budget is spent (ForegroundServiceStartNotAllowedException).
+            // Instead of crashing, the walk runs quietly in the app, as after a choice of folders.
+            app.remote.runRequested()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "readersbooks:scan").apply { acquire(60 * 60 * 1000L) }
         val job: Job? = app.remote.runRequested()
         if (job == null) { stopSelf(); return START_NOT_STICKY }
@@ -52,10 +60,17 @@ class ScanService : Service() {
     }
 
     private fun notification(p: Progress): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
         return b.setSmallIcon(R.drawable.ic_notif).setContentTitle(getString(R.string.notif_scanning)).setContentText(getString(R.string.scanning, p.folders, p.books))
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(open).build()
+    }
+
+    /** Android 15+: the dataSync budget (6 h per day) ran out; the service must go within seconds. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        (application as App).remote.cancel()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     override fun onDestroy() {

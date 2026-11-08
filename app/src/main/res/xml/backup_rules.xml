@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup (Android 6-11): keep the shelf's list, the settings and the highlights, leave
+     out the book files themselves, which would blow the 25 MB quota and cancel the whole backup. -->
+<full-backup-content>
+    <exclude domain="file" path="books" />
+    <exclude domain="file" path="library-index.json" />
+    <exclude domain="file" path="library-kinds.json" />
+</full-backup-content>
