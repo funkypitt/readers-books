@@ -43,7 +43,9 @@ data class Index(
 
 /** What one book of the library is: an issue of a newspaper or a magazine (`news`), a book, or not known yet (null, `tries` so far). Kept for that size and that change. */
 @Serializable
-data class Kind(val size: Long, val modified: Long, val news: Boolean?, val tries: Int = 0, val date: Long = 0L, val version: Int = 0)
+data class Kind(val size: Long, val modified: Long, val news: Boolean?, val tries: Int = 0, val date: Long = 0L, val version: Int = 0,
+                /** The title the issue carries inside (dc:title): null = not read yet, "" = it has none. */
+                val title: String? = null)
 
 /** 2: gatherings of articles count too, and issues carry their own date. */
 const val KINDS_VERSION = 2
@@ -366,9 +368,20 @@ class RemoteLibrary(private val context: Context) {
         shown(s).filter { kindOf(it, kinds)?.news == true }
             .sortedWith(compareByDescending<RemoteBook> { issueDate(it, kinds) }.thenByDescending { News.date(it) })
 
-    /** The EPUBs not looked at yet (or changed since), and those the drive would not answer for, three times at most. */
+    /** The title an issue carries inside, null while it was not read. */
+    fun issueTitle(b: RemoteBook, kinds: Map<String, Kind> = _kinds.value): String? = kindOf(b, kinds)?.title
+
+    /** The news by periodical, the one with the latest issue first. */
+    fun periodicals(s: Settings, kinds: Map<String, Kind> = _kinds.value): List<Periodical> =
+        Periodicals.group(news(s, kinds), { issueTitle(it, kinds) }, { issueDate(it, kinds) })
+
+    /**
+     * The EPUBs not looked at yet (or changed since), those the drive would not answer for, three
+     * times at most, and the issues whose title was never read (they were told apart before titles
+     * were kept).
+     */
     fun unsorted(s: Settings): List<RemoteBook> = shown(s).filter { b ->
-        b.extension == "epub" && kindOf(b).let { k -> k == null || (k.news == null && k.tries < ATTEMPTS) }
+        b.extension == "epub" && kindOf(b).let { k -> k == null || (k.news == null && k.tries < ATTEMPTS) || (k.news == true && k.title == null) }
     }
 
     /**
@@ -383,12 +396,13 @@ class RemoteLibrary(private val context: Context) {
     fun sortBooks(s: Settings, known: Map<String, Boolean>) {
         val todo = unsorted(s)
         if (todo.isEmpty()) return
-        val told = todo.filter { it.ref in known }
+        val told = todo.filter { it.ref in known && kindOf(it)?.news == null }
         if (told.isNotEmpty()) {
             _kinds.value = _kinds.value + told.associate { it.ref to Kind(it.size, it.modified, known.getValue(it.ref), version = KINDS_VERSION) }
             saveKinds()
         }
-        val rest = todo.filter { it.ref !in known }.sortedByDescending { News.date(it) }
+        // an issue known from the phone is still read on the drive, for its title and its date
+        val rest = todo.filter { known[it.ref] != false }.sortedByDescending { News.date(it) }
         if (rest.isEmpty()) return
         if (sortJob?.isActive == true) {
             // books new to the library go before what the first pass has still to look at
@@ -414,16 +428,19 @@ class RemoteLibrary(private val context: Context) {
                     launch {
                         while (isActive) {
                             val b = lock.withLock { queue.removeFirstOrNull()?.also { sortBusy += it.ref } } ?: break
-                            val (news, date) = try {
+                            val told = try {
                                 News.kind { start, length -> remote.readRange(b.ref, start, length, b.size) }
                             } catch (e: Unauthorized) { lock.withLock { queue.clear(); sortBusy -= b.ref }; break
                             } catch (e: CancellationException) { throw e
-                            } catch (e: Exception) { null to 0L }
+                            } catch (e: Exception) { News.Told(null, 0L) }
                             lock.withLock {
                                 sortBusy -= b.ref
                                 val old = _kinds.value[b.ref]
+                                val news = told.news
                                 val tries = if (news == null) (if (old != null && old.modified == b.modified) old.tries + 1 else 1) else 0
-                                _kinds.value = _kinds.value + (b.ref to Kind(b.size, b.modified, news, tries, date, KINDS_VERSION))
+                                // an issue already told, read again only for its title: the drive not answering takes nothing back
+                                val kept = kindOf(b)?.takeIf { news == null && it.news == true }
+                                _kinds.value = _kinds.value + (b.ref to (kept?.copy(title = "") ?: Kind(b.size, b.modified, news, tries, told.date, KINDS_VERSION, told.title ?: "")))
                                 done++
                                 _sorting.value = done to maxOf(_sorting.value?.second ?: 0, done)
                                 if (done % 25 == 0) saveKinds()

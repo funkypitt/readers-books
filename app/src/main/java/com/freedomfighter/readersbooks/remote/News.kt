@@ -95,8 +95,12 @@ object News {
     private val H1 = Regex("<h1\\b", RegexOption.IGNORE_CASE)
 
     /** True for an issue or a gathering of articles, false for a book, null when the drive would not say. */
-    suspend fun isNews(read: Reader): Boolean? = kind(read).first
+    suspend fun isNews(read: Reader): Boolean? = kind(read).news
 
+    /** What [kind] found: news or not (null: the drive would not say), the issue's date (0: none), its title (null: not read). */
+    data class Told(val news: Boolean?, val date: Long, val title: String? = null)
+
+    private val DC_TITLE = Regex("<dc:title[^>]*>([^<]*)")
     private val DC_DATE = Regex("<dc:date[^>]*>\\s*(\\d{4})-(\\d{2})-(\\d{2})")
     private val TOC_TITLE = Regex("<span\\b[^>]*class=\"[^\"]*\\btoc-title\\b")
 
@@ -104,12 +108,14 @@ object News {
      * (news, issue date): news = true for an issue of a newspaper or a magazine, or a gathering
      * of articles (a newsletter's, a channel's summaries: a contents page of titles, with or
      * without their authors); false for a book; null when the drive would not say. The issue's
-     * own date (dc:date) in milliseconds, 0 when it has none.
+     * own date (dc:date) in milliseconds, 0 when it has none, and its title (dc:title), "" when
+     * it has none.
      */
-    suspend fun kind(read: Reader): Pair<Boolean?, Long> {
-        val entries = directory(read) ?: return null to 0L
-        val opfName = entries.keys.firstOrNull { it.lowercase().endsWith(".opf") } ?: return null to 0L
-        val opf = member(read, entries, opfName) ?: return null to 0L
+    suspend fun kind(read: Reader): Told {
+        val entries = directory(read) ?: return Told(null, 0L)
+        val opfName = entries.keys.firstOrNull { it.lowercase().endsWith(".opf") } ?: return Told(null, 0L)
+        val opf = member(read, entries, opfName) ?: return Told(null, 0L)
+        val title = DC_TITLE.find(opf)?.groupValues?.get(1)?.let { unescape(it).trim() } ?: ""
         val date = DC_DATE.find(opf)?.let { m -> runCatching {
             java.time.LocalDate.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt())
                 .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull() } ?: 0L
@@ -124,16 +130,18 @@ object News {
             if (NAV.containsMatchIn(tag)) nav = path
         }
         // one title per article (a publisher may call its contents' own heading "toc-title")
-        nav?.let { n -> member(read, entries, n)?.let { if (TOC_TITLE.containsMatchIn(it)) return true to date } }
+        nav?.let { n -> member(read, entries, n)?.let { if (TOC_TITLE.containsMatchIn(it)) return Told(true, date, title) } }
         val spine = ITEMREF.findAll(opf).mapNotNull { items[it.groupValues[1]] }.toList()
-        if (spine.size < 3) return false to date
+        if (spine.size < 3) return Told(false, date, title)
         var structured = 0
         for (k in 1..3) {
             val text = member(read, entries, spine[spine.size * k / 4]) ?: continue
             if (CATEGORY.containsMatchIn(text) && H1.containsMatchIn(text)) structured++
         }
-        return (structured >= 2) to date
+        return Told(structured >= 2, date, title)
     }
+
+    private fun unescape(s: String) = s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&#39;", "'")
 
     /** When an issue came out, as the drive knows it: the file's creation, else its last change. */
     fun date(b: RemoteBook): Long = if (b.created > 0) b.created else b.modified

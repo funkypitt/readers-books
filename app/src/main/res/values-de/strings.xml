@@ -194,6 +194,15 @@
         <item quantity="one">%d Ausgabe</item>
         <item quantity="other">%d Ausgaben</item>
     </plurals>
+    <string name="by_periodical">nach Zeitschrift</string>
+    <string name="by_periodical_hint">eine Zeile pro Zeitung oder Kanal</string>
+    <string name="every_issue">jede Ausgabe</string>
+    <string name="every_issue_hint">alle Ausgaben nacheinander</string>
+    <string name="latest_issue_first">neueste Ausgabe zuerst</string>
+    <plurals name="n_periodicals">
+        <item quantity="one">%d Zeitschrift</item>
+        <item quantity="other">%d Zeitschriften</item>
+    </plurals>
     <string name="news">Nachrichten</string>
     <string name="latest_issue">neueste: %1$s</string>
     <string name="looking_for_more">Suche läuft… %1$d/%2$d</string>

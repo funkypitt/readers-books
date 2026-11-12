@@ -52,6 +52,11 @@ network is used only if you set up a library on your own drive. It extends the b
   found books in, at once, then the folders on the way to them, then the rest of the drive (where
   new books are only looked for): on a drive of 20 000 folders, the 77 that hold books are up to
   date in seconds.
+* **news by periodical** (the news' ⋯ menu, « by periodical » / « every issue »): one line per
+  newspaper, magazine, newsletter or channel, the one with the latest issue first; a tap lists
+  its issues, the newest first, each under its own title. Issues go together by what their file
+  names share (« 2026-11-10-letemps.epub »; « 2026-11-09-norwitz-<episode>.epub »), and the
+  periodical is named as its issues name it inside (« Le Temps », « Nick Norwitz MD PhD »).
 * **news** in the library (there only when the library holds some): the issues of newspapers and
   magazines, and the gatherings of articles (a newsletter's, a channel's summaries), from every
   folder in one list, the newest first by the issue's own date (its dc:date; else the file's

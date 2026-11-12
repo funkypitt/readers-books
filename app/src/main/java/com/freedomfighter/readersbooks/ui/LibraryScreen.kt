@@ -58,6 +58,7 @@ import com.freedomfighter.readersbooks.remote.BOOK_EXTENSIONS
 import com.freedomfighter.readersbooks.remote.Folders
 import com.freedomfighter.readersbooks.remote.Followed
 import com.freedomfighter.readersbooks.remote.TRANSCRIPTS_FOLDER
+import com.freedomfighter.readersbooks.remote.Periodicals
 import com.freedomfighter.readersbooks.remote.RemoteBook
 import com.freedomfighter.readersbooks.remote.Unauthorized
 import kotlinx.coroutines.Dispatchers
@@ -386,9 +387,47 @@ fun NewsScreen(nav: Nav, app: App) {
     val index by app.remote.index.collectAsState()
     val kinds by app.remote.kinds.collectAsState()
     val books = remember(index, kinds, s.libraryFolders, s.libraryExcluded) { app.remote.news(s, kinds) }
-    BookList(nav, app, stringResource(R.string.news), books, showFolder = true,
+    val toggle = listOf(MenuItem(stringResource(if (s.newsByPeriodical) R.string.every_issue else R.string.by_periodical),
+        secondary = stringResource(if (s.newsByPeriodical) R.string.every_issue_hint else R.string.by_periodical_hint)) { app.prefs.setNewsByPeriodical(!s.newsByPeriodical) })
+    if (!s.newsByPeriodical) {
+        BookList(nav, app, stringResource(R.string.news), books, showFolder = true,
+            order = pluralStringResource(R.plurals.n_issues, books.size, books.size) + " · " + stringResource(R.string.newest_first),
+            orders = toggle, dated = { app.remote.issueDate(it, kinds) })
+        return
+    }
+    // by periodical: the one with the latest issue first, its issues one tap further
+    val periodicals = remember(books, kinds) { app.remote.periodicals(s, kinds) }
+    var menu by remember { mutableStateOf(false) }
+    BackHandler { nav.pop() }
+    Page {
+        Column(Modifier.fillMaxSize()) {
+            ScreenTitle(stringResource(R.string.news), onBack = { nav.pop() }, trailing = "⋯", onTrailing = { menu = true })
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 6.dp, bottom = 16.dp)) {
+                item { Small(pluralStringResource(R.plurals.n_periodicals, periodicals.size, periodicals.size) + " · " + stringResource(R.string.latest_issue_first),
+                    Modifier.padding(horizontal = rowPadH).padding(top = 8.dp, bottom = 4.dp), maxLines = 1) }
+                items(periodicals, key = { it.key }) { p ->
+                    TextRow(p.name, secondary = pluralStringResource(R.plurals.n_issues, p.issues.size, p.issues.size) + " · " + stringResource(R.string.latest_issue, dateLabel(p.latest)),
+                        size = LocalTypo.current.title) { nav.push(Screen.Periodical(p.key)) }
+                }
+            }
+            Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+        if (menu) TextMenu(stringResource(R.string.news), toggle, onDismiss = { menu = false },
+            footer = listOf(MenuItem(stringResource(R.string.search)) { nav.push(Screen.Search) }))
+    }
+}
+
+/** The issues of one periodical of the news, the newest first, each named by its own title. */
+@Composable
+fun PeriodicalScreen(nav: Nav, app: App, key: String) {
+    val s by app.prefs.settings.collectAsState()
+    val index by app.remote.index.collectAsState()
+    val kinds by app.remote.kinds.collectAsState()
+    val periodical = remember(index, kinds, s.libraryFolders, s.libraryExcluded, key) { app.remote.periodicals(s, kinds).firstOrNull { it.key == key } }
+    val books = periodical?.issues ?: emptyList()
+    BookList(nav, app, periodical?.name ?: stringResource(R.string.news), books,
         order = pluralStringResource(R.plurals.n_issues, books.size, books.size) + " · " + stringResource(R.string.newest_first),
-        orders = emptyList(), dated = { app.remote.issueDate(it, kinds) })
+        orders = emptyList(), dated = { app.remote.issueDate(it, kinds) }, titled = { Periodicals.issueTitle(it, app.remote.issueTitle(it, kinds)) })
 }
 
 @Composable
@@ -444,7 +483,7 @@ fun SearchScreen(nav: Nav, app: App) {
  */
 @Composable
 private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>, order: String, orders: List<MenuItem>, footer: List<MenuItem> = emptyList(), showFolder: Boolean = false, base: String = "", opened: Map<String, Long>? = null,
-                     empty: String? = null, searchable: Boolean = true, header: (@Composable () -> Unit)? = null, dated: (RemoteBook) -> Long = { it.modified }) {
+                     empty: String? = null, searchable: Boolean = true, header: (@Composable () -> Unit)? = null, dated: (RemoteBook) -> Long = { it.modified }, titled: (RemoteBook) -> String = { it.title }) {
     val s by app.prefs.settings.collectAsState()
     val shelf by app.library.books.collectAsState()
     val pending by app.downloads.pending.collectAsState()
@@ -486,7 +525,7 @@ private fun BookList(nav: Nav, app: App, title: String, books: List<RemoteBook>,
                     ).filter { it.isNotEmpty() }.joinToString(" · ")
                     val interaction = remember { MutableInteractionSource() }
                     Column(Modifier.fillMaxWidth().tileCard(rowSurface(interaction)).pressable(onClick = { open(b) }, onLongPress = { bookMenu = b }, interactionSource = interaction).padding(horizontal = rowInset(), vertical = rowPadV * 0.7f)) {
-                        T(b.title, size = LocalTypo.current.title, maxLines = 2)
+                        T(titled(b), size = LocalTypo.current.title, maxLines = 2)
                         Small(line, maxLines = 1)
                     }
                 }

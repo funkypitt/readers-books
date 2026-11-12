@@ -206,6 +206,17 @@
         <item quantity="many">%d выпусков</item>
         <item quantity="other">%d выпуска</item>
     </plurals>
+    <string name="by_periodical">по изданиям</string>
+    <string name="by_periodical_hint">строка на газету или канал</string>
+    <string name="every_issue">каждый выпуск</string>
+    <string name="every_issue_hint">все выпуски подряд</string>
+    <string name="latest_issue_first">сначала с последним выпуском</string>
+    <plurals name="n_periodicals">
+        <item quantity="one">%d издание</item>
+        <item quantity="few">%d издания</item>
+        <item quantity="many">%d изданий</item>
+        <item quantity="other">%d изданий</item>
+    </plurals>
     <string name="news">новости</string>
     <string name="latest_issue">последний: %1$s</string>
     <string name="looking_for_more">идёт поиск… %1$d/%2$d</string>

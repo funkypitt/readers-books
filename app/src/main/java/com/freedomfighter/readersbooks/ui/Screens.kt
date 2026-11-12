@@ -63,6 +63,8 @@ sealed class Screen {
     data object AllBooks : Screen()
     /** The library's newspapers and magazines, the newest issue first. */
     data object News : Screen()
+    /** The issues of one periodical of the news (by its key), the newest first. */
+    data class Periodical(val key: String) : Screen()
     /** The books of the library whose name, author or folder carries what is typed. */
     data object Search : Screen()
     /** Choosing the folder of the library a book of the shelf is sent to. */

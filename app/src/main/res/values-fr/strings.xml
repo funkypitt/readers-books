@@ -197,6 +197,15 @@
         <item quantity="one">%d numéro</item>
         <item quantity="other">%d numéros</item>
     </plurals>
+    <string name="by_periodical">par périodique</string>
+    <string name="by_periodical_hint">une ligne par journal ou par chaîne</string>
+    <string name="every_issue">chaque numéro</string>
+    <string name="every_issue_hint">tous les numéros à la suite</string>
+    <string name="latest_issue_first">dernière parution d\'abord</string>
+    <plurals name="n_periodicals">
+        <item quantity="one">%d périodique</item>
+        <item quantity="other">%d périodiques</item>
+    </plurals>
     <string name="news">actualités</string>
     <string name="latest_issue">dernier : %1$s</string>
     <string name="looking_for_more">recherche en cours… %1$d/%2$d</string>

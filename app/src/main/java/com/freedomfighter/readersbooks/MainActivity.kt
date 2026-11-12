@@ -16,6 +16,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.freedomfighter.readersbooks.ui.AllBooksScreen
 import com.freedomfighter.readersbooks.ui.NewsScreen
+import com.freedomfighter.readersbooks.ui.PeriodicalScreen
 import com.freedomfighter.readersbooks.ui.SearchScreen
 import com.freedomfighter.readersbooks.ui.BookChaptersScreen
 import com.freedomfighter.readersbooks.ui.BookScreen
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
                     Screen.Library -> LibraryScreen(nav, app)
                     Screen.LibraryFolders -> LibraryFoldersScreen(nav, app)
                     is Screen.Folder -> FolderScreen(nav, app, s.path, s.group)
+                    is Screen.Periodical -> PeriodicalScreen(nav, app, s.key)
                     Screen.AllBooks -> AllBooksScreen(nav, app)
                     Screen.News -> NewsScreen(nav, app)
                     Screen.Search -> SearchScreen(nav, app)

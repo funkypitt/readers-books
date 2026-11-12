@@ -47,6 +47,8 @@ data class Settings(
     val shelfSort: ShelfSort = ShelfSort.OPENED,
     /** The library lists its top folders only, each standing for everything inside it. */
     val libraryTopFolders: Boolean = false,
+    /** The news as a list of periodicals, each with its issues, instead of every issue in one list. */
+    val newsByPeriodical: Boolean = false,
     /** A folder of the library lists the books of the folders inside it too. */
     val librarySubfolders: Boolean = false,
     /** The folders of the drive that make the library (paths below its top); empty = the whole drive. */
@@ -94,6 +96,7 @@ class Prefs(context: Context) {
         folderSort = enumOr(sp.getString("folder_sort", null), FolderSort.NAME),
         shelfSort = enumOr(sp.getString("shelf_sort", null), ShelfSort.OPENED),
         libraryTopFolders = sp.getBoolean("library_top_folders", false),
+        newsByPeriodical = sp.getBoolean("news_by_periodical", false),
         librarySubfolders = sp.getBoolean("library_subfolders", false),
         libraryFolders = (sp.getStringSet("library_folders", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
         libraryExcluded = (sp.getStringSet("library_excluded", null) ?: emptySet()).filter { it.isNotEmpty() }.sorted(),
@@ -116,6 +119,7 @@ class Prefs(context: Context) {
     fun setAllBooksSort(v: BookSort) = sp.edit().putString("all_books_sort", v.name).apply()
     fun setFolderSort(v: FolderSort) = sp.edit().putString("folder_sort", v.name).apply()
     fun setShelfSort(v: ShelfSort) = sp.edit().putString("shelf_sort", v.name).apply()
+    fun setNewsByPeriodical(v: Boolean) = sp.edit().putBoolean("news_by_periodical", v).apply()
     fun setLibraryTopFolders(v: Boolean) = sp.edit().putBoolean("library_top_folders", v).apply()
     fun setLibrarySubfolders(v: Boolean) = sp.edit().putBoolean("library_subfolders", v).apply()
     /** The folders that make the library; chosen, the choice is no longer to be offered. */
