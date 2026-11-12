@@ -54,7 +54,7 @@ object BookParser {
         ZipFile(file).use { zip ->
             fun read(path: String): String? {
                 val entry = zip.getEntry(path) ?: zip.getEntry(path.removePrefix("/")) ?: return null
-                return zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
+                return Quotes.double(zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) })
             }
             val container = read("META-INF/container.xml") ?: throw UnsupportedBookException("not an EPUB")
             val opfPath = Regex("full-path=\"([^\"]+)\"").find(container)?.groupValues?.get(1)

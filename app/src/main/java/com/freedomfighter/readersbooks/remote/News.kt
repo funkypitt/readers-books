@@ -73,7 +73,7 @@ object News {
             }.getOrNull() ?: return null
             else -> return null
         }
-        return String(bytes, Charsets.UTF_8)
+        return com.freedomfighter.readersbooks.books.Quotes.double(String(bytes, Charsets.UTF_8))
     }
 
     private fun normalize(path: String): String {

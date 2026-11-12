@@ -31,9 +31,9 @@ object BookIdentity {
         if (format != BookFormat.EPUB) return ""
         return runCatching {
             ZipFile(file).use { zip ->
-                val container = zip.getEntry("META-INF/container.xml")?.let { e -> zip.getInputStream(e).use { it.readBytes().decodeToString() } } ?: return ""
+                val container = zip.getEntry("META-INF/container.xml")?.let { e -> Quotes.double(zip.getInputStream(e).use { it.readBytes().decodeToString() }) } ?: return ""
                 val opfPath = Regex("full-path=\"([^\"]+)\"").find(container)?.groupValues?.get(1) ?: return ""
-                val opf = zip.getEntry(opfPath)?.let { e -> zip.getInputStream(e).use { it.readBytes().decodeToString() } } ?: return ""
+                val opf = zip.getEntry(opfPath)?.let { e -> Quotes.double(zip.getInputStream(e).use { it.readBytes().decodeToString() }) } ?: return ""
                 packageId(opf)
             }
         }.getOrDefault("")

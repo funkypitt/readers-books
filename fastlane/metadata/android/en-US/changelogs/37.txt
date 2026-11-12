@@ -1,0 +1,1 @@
+Books whose files write their attributes between single quotes (valid, but rare) now open, with their contents page and their pictures; such issues are told as news too.
